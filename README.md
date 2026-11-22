@@ -34,8 +34,10 @@ file and spectrum.*
 - **Intensity or ions.** Orbitrap and Astral intensities are ion arrival rates (ions/s). Switching
   units to *Ions* multiplies each point by its scan's injection time, Skyline's own convention
   (`intensity x injection time / 1000`).
-- **XICs for any number of peptides**, with no top-N cap: one per peptide, each in its own color as
-  in the spectrum (the default for up to 100 peptides), one per protein, or one summed trace. The XICs
+- **XICs for any number of peptides**, with no top-N cap: per peptide (the default for up to 100
+  peptides), one per protein, or one summed trace. Per peptide, each charge state is its own trace,
+  labelled as in the spectrum ("WYNLAIGSTC[+57]PWLK 2+") and drawn in its peptide's color, lighter for
+  the higher charges. The XICs
   use the peptides' MS1 precursor isotopes or their MS2 document transitions. Selecting a protein draws
   all of its peptides.
 - **Integrated peaks.** With *Integrated only* on (the default), each XIC is drawn only between

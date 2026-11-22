@@ -180,10 +180,25 @@ public partial class MainWindow
 
     private Color ColorFor(object? owner) => owner switch
     {
+        DocPrecursor p => ChargeTint(PeptideColor(p.Peptide), p),
         DocPeptide p => PeptideColor(p),
         DocProtein p => PeptideColors.For(p),
         _ => Colors.DarkOrange,
     };
+
+    /// <summary>
+    /// A precursor's XIC color: its peptide's color, lighter for each further charge state or label, so a
+    /// peptide's 2+ and 3+ are told apart and still read as one peptide.
+    /// </summary>
+    private static Color ChargeTint(Color peptideColor, DocPrecursor precursor)
+    {
+        var rank = precursor.Peptide.Precursors.IndexOf(precursor);
+        if (rank <= 0)
+            return peptideColor;
+        var toWhite = Math.Min(0.6, 0.3 * rank);
+        byte Mix(byte c) => (byte)(c + (255 - c) * toWhite);
+        return new Color(Mix(peptideColor.R), Mix(peptideColor.G), Mix(peptideColor.B), peptideColor.A);
+    }
 
     /// <summary>Per scan of the filter: the signal document peptides claim.</summary>
     private Trace AssignedTrace(Core.Assignment.DocumentSignals signals, ScanFilter filter, IntensityUnits units)
@@ -214,13 +229,20 @@ public partial class MainWindow
     {
         if (_run is null)
             return;
-        // Clicking an XIC trace selects that peptide and shows the spectrum where it was measured.
-        if (_xicPlottable?.Highlighted is { Tag: DocPeptide peptide })
+        // Clicking an XIC trace selects that peptide and shows the spectrum where it was measured: for a
+        // charge state's trace, that precursor's own isolation window.
+        var clicked = _xicPlottable?.Highlighted?.Tag switch
+        {
+            DocPrecursor p => (p.Peptide, p),
+            DocPeptide p => (p, p.Precursors.FirstOrDefault()),
+            _ => ((DocPeptide?)null, (DocPrecursor?)null),
+        };
+        if (clicked.Item1 is { } peptide)
         {
             // Show the peptide in the spectrum where its trace was measured, and annotate it even when
             // that scan is just outside Skyline's integrated peak.
             _forcedPeptide = peptide;
-            var precursor = peptide.Precursors.FirstOrDefault();
+            var precursor = clicked.Item2;
             if (precursor is not null)
             {
                 var traceFilter = XicLevelCombo.SelectedIndex == 0 ? ScanFilter.Ms2Containing(precursor.Mz) : ScanFilter.Ms1;

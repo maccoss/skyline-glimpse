@@ -51,10 +51,17 @@ public static class XicTraces
         switch (mode)
         {
             case XicMode.PerPeptide:
+                // One trace per charge state (and label), named as the spectrum names it ("AAK 2+").
                 foreach (var peptide in distinct)
                 {
-                    if (Trace(new[] { peptide }) is { } t)
-                        result.Add(new XicTrace($"{peptide.ModifiedSequence} ({peptide.Protein.Name})", t.T, t.Y, peptide));
+                    foreach (var precursor in peptide.Precursors)
+                    {
+                        if (Combined(index, signals, new[] { precursor }, ms1, units, integratedOnly) is { } t)
+                        {
+                            result.Add(new XicTrace($"{Assignment.PeakLabels.Precursor(precursor, "")} ({peptide.Protein.Name})",
+                                t.T, t.Y, precursor));
+                        }
+                    }
                 }
                 break;
             case XicMode.PerProtein:
@@ -151,11 +158,32 @@ public static class XicTraces
         }
         if (perScan.Count == 0)
             return null;
-        var scans = perScan.Keys.Order().ToArray();
-        var values = scans.Select(s => (float)perScan[s]).ToArray();
-        var trace = Points(index, scans, values, units, double.NegativeInfinity, double.PositiveInfinity);
-        return trace.T.Length > 0 ? trace : null;
+
+        // One series per kind of scan: the MS1 scans, or the scans of one isolation window. Within a
+        // series the precursors share scans, and the union above counted each peak once. Across series the
+        // signals come from different scans at different times in the cycle (a peptide's 2+ and 3+ in two
+        // windows), so they are added on a common time grid; adding them scan by scan would alternate
+        // between one window's value and the other's, a sawtooth.
+        var traces = new List<(double[] T, double[] Y)>();
+        foreach (var series in perScan.Keys.GroupBy(s => ms1 ? (0.0, 0.0) : WindowOf(index[s])))
+        {
+            var scans = series.Order().ToArray();
+            var values = scans.Select(s => (float)perScan[s]).ToArray();
+            var trace = Points(index, scans, values, units, double.NegativeInfinity, double.PositiveInfinity);
+            if (trace.T.Length > 0)
+                traces.Add(trace);
+        }
+        return traces.Count switch
+        {
+            0 => null,
+            1 => traces[0],
+            _ => SumOnGrid(traces, GridStep(index)),
+        };
     }
+
+    /// <summary>A scan's isolation window, rounded so the scans of one window share a key.</summary>
+    private static (double, double) WindowOf(ScanHeader h) =>
+        (Math.Round(h.IsolationLower, 3), Math.Round(h.IsolationUpper, 3));
 
     /// <summary>The precursor's integrated peak in this file, or the whole run when not limited to it.</summary>
     private static (double From, double To) Bounds(DocPrecursor precursor, string fileName, bool integratedOnly) =>

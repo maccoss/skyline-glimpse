@@ -130,7 +130,7 @@ public class DocumentSignalTests
 
         var perPeptide = XicTraces.Build(_index, _signals, peptides, XicMode.PerPeptide, false, IntensityUnits.AsRecorded);
         Assert.Equal(2, perPeptide.Count);
-        var a = perPeptide.Single(t => t.Owner == _a.Peptide);
+        var a = perPeptide.Single(t => t.Owner == _a);
         Assert.Equal(new[] { 0.3, 1.8, 2.3 }, a.Times);
         Assert.Equal(new[] { 12.0, 12.0, 12.0 }, a.Values);
 
@@ -144,7 +144,7 @@ public class DocumentSignalTests
         Assert.Contains("3 peptides", sum.Name);
 
         var ms1 = XicTraces.Build(_index, _signals, peptides, XicMode.PerPeptide, true, IntensityUnits.AsRecorded);
-        Assert.Equal(new[] { 10.0, 14.0 }, ms1.Single(t => t.Owner == _a.Peptide).Values);
+        Assert.Equal(new[] { 10.0, 14.0 }, ms1.Single(t => t.Owner == _a).Values);
 
         // Ions: scan 6 has a 20 ms injection, the others 10 ms.
         var ions = XicTraces.Build(_index, _signals, new[] { _a.Peptide }, XicMode.PerPeptide, false, IntensityUnits.Ions).Single();
@@ -192,8 +192,8 @@ public class DocumentSignalTests
 
         // A shared peptide is drawn once per peptide, but each protein keeps it in its own trace.
         var perPeptide = XicTraces.Build(index, signals, all, XicMode.PerPeptide, true, IntensityUnits.AsRecorded, integratedOnly: true);
-        Assert.Equal(new[] { aak.Peptide, cck.Peptide }, perPeptide.Select(t => t.Owner));
-        Assert.Equal(new[] { "AAK (P1)", "CCK (P2)" }, perPeptide.Select(t => t.Name));
+        Assert.Equal(new object[] { aak, cck }, perPeptide.Select(t => t.Owner));
+        Assert.Equal(new[] { "AAK 2+ (P1)", "CCK 2+ (P2)" }, perPeptide.Select(t => t.Name));
         var perProtein = XicTraces.Build(index, signals, all, XicMode.PerProtein, true, IntensityUnits.AsRecorded, integratedOnly: true);
         Assert.Equal(new object[] { p1, p2, p3 }, perProtein.Select(t => t.Owner));
         Assert.Equal(new[] { "P1 (1 peptides)", "P2 (1 peptides)", "P3 (1 peptides)" }, perProtein.Select(t => t.Name));
@@ -211,6 +211,37 @@ public class DocumentSignalTests
         // Ions: the union is converted per scan (10 ms injections: x 0.01).
         var ions = Assert.Single(XicTraces.Build(index, signals, all, XicMode.Summed, true, IntensityUnits.Ions, integratedOnly: true));
         Assert.Equal(new[] { 1.0, 0.6, 0.0 }, ions.Values.Select(v => Math.Round(v, 6)));
+    }
+
+    [Fact]
+    public void APeptidesChargeStatesInTwoWindowsAddUpWithoutASawtooth()
+    {
+        // WYNLAIGSTCPWLK's case: the 2+ is isolated in one window and the 3+ in another, acquired at
+        // alternating times. The 2+ fragments give 100 per scan, the 3+ fragments 10.
+        var protein = new DocProtein("P", null, null, null);
+        var z2 = Docs.Precursor(protein, "AAAK", 2, 405.0, "run1.raw", 0, 3, ("y2", 1, 300.0));
+        var z3 = Docs.Precursor(protein, "AAAK", 3, 270.3, "run1.raw", 0, 3, ("y3", 1, 330.0));
+        var source = new FakeSource();
+        foreach (var t in new[] { 1.0, 1.2, 1.4, 1.6 })
+        {
+            source.Ms2(t, 400, 410, new[] { 300.0 }, new[] { 100.0 });
+            source.Ms2(t + 0.1, 265, 275, new[] { 330.0 }, new[] { 10.0 });
+        }
+        var observer = new DocumentSignalObserver(Docs.Model(protein), "run1.raw", DocumentSettings.Default);
+        var index = ScanIndexBuilder.Build(source, false, new IScanObserver[] { observer });
+
+        var perCharge = XicTraces.Build(index, observer.Result!, new[] { z2.Peptide }, XicMode.PerPeptide, false,
+            IntensityUnits.AsRecorded, integratedOnly: true);
+        Assert.Equal(new[] { "AAAK 2+ (P)", "AAAK 3+ (P)" }, perCharge.Select(t => t.Name));
+        Assert.All(perCharge[0].Values, v => Assert.Equal(100.0, v, 6));
+        Assert.All(perCharge[1].Values, v => Assert.Equal(10.0, v, 6));
+
+        var trace = Assert.Single(XicTraces.Build(index, observer.Result!, new[] { z2.Peptide }, XicMode.Summed, false,
+            IntensityUnits.AsRecorded, integratedOnly: true));
+        // Where both are measured (1.1 to 1.6 min) the sum is 110 throughout: never 100 then 10.
+        var both = trace.Times.Select((t, i) => (t, v: trace.Values[i])).Where(p => p.t >= 1.1 && p.t <= 1.6).ToList();
+        Assert.NotEmpty(both);
+        Assert.All(both, p => Assert.Equal(110.0, p.v, 6));
     }
 
     [Fact]
@@ -242,7 +273,7 @@ public class DocumentSignalTests
     }
 
     [Fact]
-    public void PeptideWithTwoChargesIsSummed()
+    public void APeptidesChargeStatesAreSeparateTracesAndSumOnce()
     {
         var protein = new DocProtein("P", null, null, null);
         var z2 = Docs.Precursor(protein, "AAAK", 2, 405.0, "run1.raw", 0, 3, ("y2", 1, 300.0));
@@ -255,10 +286,14 @@ public class DocumentSignalTests
             .Ms2(1.5, 265, 410, new[] { 300.0 }, new[] { 6.0 });
         var observer = new DocumentSignalObserver(Docs.Model(protein), "run1.raw", DocumentSettings.Default);
         var index = ScanIndexBuilder.Build(source, false, new IScanObserver[] { observer });
-        var trace = XicTraces.Build(index, observer.Result!, new[] { z2.Peptide }, XicMode.PerPeptide, false, IntensityUnits.AsRecorded).Single();
-        // Both charge states extract the same peak: the peptide trace is their sum on a common grid.
-        Assert.Equal(8.0, trace.Values[0], 6);
-        Assert.Equal(12.0, trace.Values[^1], 6);
+        // One trace per charge state, each with the peak both extract.
+        var perCharge = XicTraces.Build(index, observer.Result!, new[] { z2.Peptide }, XicMode.PerPeptide, false, IntensityUnits.AsRecorded);
+        Assert.Equal(new object[] { z2, z3 }, perCharge.Select(t => t.Owner));
+        Assert.All(perCharge, t => Assert.Equal(new[] { 4.0, 6.0 }, t.Values));
+        // Summed inside the integrated peak, the shared peak counts once.
+        var sum = Assert.Single(XicTraces.Build(index, observer.Result!, new[] { z2.Peptide }, XicMode.Summed, false,
+            IntensityUnits.AsRecorded, integratedOnly: true));
+        Assert.Equal(new[] { 4.0, 6.0 }, sum.Values);
     }
 
     [Fact]
