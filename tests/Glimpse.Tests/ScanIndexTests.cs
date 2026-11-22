@@ -154,6 +154,108 @@ public class ScanIndexTests
     }
 
     [Fact]
+    public void SeveralReadersGiveTheSameIndexInTheSameOrder()
+    {
+        // 50 cycles = 150 spectra. One reader, then four (the source and three more copies of the file).
+        var (single, _) = Dia(50);
+        var one = new OrderObserver();
+        var expected = ScanIndexBuilder.Build(single, false, new IScanObserver[] { one });
+
+        var (source, _) = Dia(50);
+        var copies = Enumerable.Range(0, 3).Select(_ => Dia(50).Item1).ToArray();
+        var four = new OrderObserver();
+        var previews = new List<ScanPassPreview>();
+        var progress = new List<double>();
+        var index = ScanIndexBuilder.Build(source, false, new IScanObserver[] { four }, new SyncProgress(progress), default,
+            new SyncProgress<ScanPassPreview>(previews), copies);
+
+        Assert.Equal(expected.Headers, index.Headers);
+        Assert.Equal(Enumerable.Range(0, 150), four.Seen);          // every spectrum once, in order
+        Assert.True(four.Ended);
+        Assert.Equal(24, previews.Count);
+        Assert.Equal(1.0, progress[^1]);
+        // Each reader read its share: spectra 0, 4, 8... for the source, 1, 5, 9... for the first copy
+        // (on top of the 150 that Dia() read to build its own index).
+        Assert.Equal(new[] { 38, 38, 37, 37 }, new[] { source.Reads, copies[0].Reads, copies[1].Reads, copies[2].Reads }.Select(r => r - 150));
+
+        // Fewer spectra than readers: read on the calling thread.
+        var (tiny, _) = Dia(1);
+        Assert.Equal(3, ScanIndexBuilder.Build(tiny, false, Array.Empty<IScanObserver>(), extraReaders: copies).Count);
+    }
+
+    [Fact]
+    public void AReaderThatFailsStopsThePassWithItsOwnError()
+    {
+        var (source, _) = Dia(50);
+        var failing = new FailingSource(Dia(50).Item1, failAt: 61);
+        var observer = new OrderObserver();
+        var error = Assert.Throws<InvalidDataException>(() =>
+            ScanIndexBuilder.Build(source, false, new IScanObserver[] { observer }, extraReaders: new IMsDataSource[] { failing }));
+        Assert.Equal("Scan 61 is unreadable.", error.Message);
+        Assert.False(observer.Ended);
+        Assert.True(observer.Seen.Count <= 61);                       // nothing at or after the bad scan
+        Assert.Equal(Enumerable.Range(0, observer.Seen.Count), observer.Seen);
+    }
+
+    [Fact]
+    public void CancellingStopsEveryReader()
+    {
+        var (source, _) = Dia(50);
+        var copy = Dia(50).Item1;
+        using var cts = new CancellationTokenSource();
+        var observer = new OrderObserver { CancelAfter = 20, Cancel = cts };
+        Assert.ThrowsAny<OperationCanceledException>(() =>
+            ScanIndexBuilder.Build(source, false, new IScanObserver[] { observer }, null, cts.Token, null, new IMsDataSource[] { copy }));
+        Assert.False(observer.Ended);
+        Assert.True(observer.Seen.Count <= 21);
+    }
+
+    private sealed class OrderObserver : IScanObserver
+    {
+        public List<int> Seen { get; } = new();
+
+        public bool Ended { get; private set; }
+
+        public int CancelAfter { get; init; } = -1;
+
+        public CancellationTokenSource? Cancel { get; init; }
+
+        public void Begin(int spectrumCount, double rtFirst, double rtLast)
+        {
+        }
+
+        public void Observe(SpectrumData spectrum)
+        {
+            Seen.Add(spectrum.Header.Index);
+            if (Seen.Count == CancelAfter)
+                Cancel?.Cancel();
+        }
+
+        public void End() => Ended = true;
+    }
+
+    /// <summary>A copy of the file whose reader cannot read one scan.</summary>
+    private sealed class FailingSource(FakeSource inner, int failAt) : IMsDataSource
+    {
+        public string FilePath => inner.FilePath;
+
+        public int SpectrumCount => inner.SpectrumCount;
+
+        public RunInfo Run => inner.Run;
+
+        public bool CanVendorCentroid => false;
+
+        public SpectrumData ReadSpectrum(int index, bool centroid) =>
+            index == failAt ? throw new InvalidDataException($"Scan {index} is unreadable.") : inner.ReadSpectrum(index, centroid);
+
+        public double ReadRetentionTime(int index) => inner.ReadRetentionTime(index);
+
+        public void Dispose()
+        {
+        }
+    }
+
+    [Fact]
     public void SpectrumLookups()
     {
         var s = FakeSource.Spectrum(0, 2, 1, new[] { 100.0, 100.01, 200.0 }, new[] { 1.0, 3.0, 2.0 }, 1, 0, 1);

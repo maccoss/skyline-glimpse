@@ -348,13 +348,14 @@ public partial class MainWindow : Window
             IProgress<double> progress, IProgress<ScanPassPreview>? preview, CancellationToken ct)
         {
             var reader = PwizMsDataSource.Open(path);
+            var extra = OpenExtraReaders(path);
             try
             {
                 var heatmap = new IntensityHeatmapAccumulator();
                 var observers = new List<IScanObserver> { heatmap };
                 if (document is not null)
                     observers.Add(document);
-                var index = ScanIndexBuilder.Build(reader, centroid, observers, progress, ct, preview);
+                var index = ScanIndexBuilder.Build(reader, centroid, observers, progress, ct, preview, extra);
                 return new LoadedRun(index, heatmap.Result!, reader, centroid) { Signals = document?.Result };
             }
             catch
@@ -362,16 +363,60 @@ public partial class MainWindow : Window
                 reader.Dispose();
                 throw;
             }
+            finally
+            {
+                foreach (var r in extra)
+                    r.Dispose();
+            }
         }
 
         /// <summary>
-        /// Measure the document's signals with a second pass over the file, on its own reader so spectrum
+        /// Readers the pass runs alongside its own (see <see cref="ScanIndexBuilder"/>): the vendor reader,
+        /// not the disk, limits a pass, so reading on several threads is what makes it faster.
+        /// </summary>
+        public static int ReaderThreads => Math.Clamp(Environment.ProcessorCount / 4, 1, MaxReaderThreads);
+
+        private const int MaxReaderThreads = 6;
+
+        /// <summary>
+        /// More open copies of the file for the pass. A copy that cannot be opened is skipped: the pass
+        /// then reads on fewer threads.
+        /// </summary>
+        private static List<IMsDataSource> OpenExtraReaders(string path)
+        {
+            var extra = new List<IMsDataSource>();
+            for (var i = 1; i < ReaderThreads; i++)
+            {
+                try
+                {
+                    extra.Add(PwizMsDataSource.Open(path));
+                }
+                catch (Exception ex)
+                {
+                    App.WriteLog($"Reading {Path.GetFileName(path)} on {extra.Count + 1} threads: another copy would not open ({ex.Message})");
+                    break;
+                }
+            }
+            return extra;
+        }
+
+        /// <summary>
+        /// Measure the document's signals with a second pass over the file, on its own readers so spectrum
         /// reads are not blocked while it runs.
         /// </summary>
         public Core.Assignment.DocumentSignals RunDocumentPass(Core.Assignment.DocumentSignalObserver observer, IProgress<double> progress, CancellationToken ct)
         {
             using var reader = PwizMsDataSource.Open(Index.FilePath);
-            ScanIndexBuilder.Build(reader, Centroid, new IScanObserver[] { observer }, progress, ct);
+            var extra = OpenExtraReaders(Index.FilePath);
+            try
+            {
+                ScanIndexBuilder.Build(reader, Centroid, new IScanObserver[] { observer }, progress, ct, extraReaders: extra);
+            }
+            finally
+            {
+                foreach (var r in extra)
+                    r.Dispose();
+            }
             return observer.Result!;
         }
 

@@ -143,9 +143,13 @@ Measured on a 69,000-precursor, 620,000-transition, 17-replicate document with A
 |---|---|
 | Read the document (targets, transitions, settings, library) | 4.5 s |
 | Fetch one file's integrated peaks | 2-4 s |
-| One pass over a 180,000-spectrum run, measuring every document peptide's signal in the same pass | about 80 s |
+| One pass over a 180,000-spectrum run, measuring every document peptide's signal in the same pass | about 50 s |
 
 The TIC is drawn while the file is still being read, so the run takes shape within seconds.
+
+The vendor reader, not the disk, limits a pass, so Glimpse reads on several threads, each with its own
+open copy of the file: one per four logical processors, up to six. Six readers read the run above 2.4
+times faster than one; more add memory (about 0.5 GB each) but no speed.
 
 ## Install in Skyline
 
