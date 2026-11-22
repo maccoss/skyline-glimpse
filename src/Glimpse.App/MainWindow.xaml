@@ -173,12 +173,12 @@
                             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="2">
                                 <TextBlock Text="Level:" Margin="4,0" VerticalAlignment="Center" />
                                 <ComboBox x:Name="HeatLevelCombo" Width="80" SelectedIndex="0" SelectionChanged="OnViewOptionChanged">
-                                    <ComboBoxItem Content="MS1" />
+                                    <ComboBoxItem x:Name="HeatMs1Item" Content="MS1" ToolTip="Not for peptides per spectrum: that counts the peptides co-isolated in each MS2 window" />
                                     <ComboBoxItem Content="MS2" />
                                 </ComboBox>
                                 <TextBlock Text="Value:" Margin="12,0,4,0" VerticalAlignment="Center" />
-                                <ComboBox x:Name="HeatValueCombo" Width="170" SelectedIndex="0" SelectionChanged="OnViewOptionChanged"
-                                          ToolTip="Intensity; fraction of the signal assigned to document peptides; or document peptides detected per spectrum">
+                                <ComboBox x:Name="HeatValueCombo" Width="170" SelectedIndex="0" SelectionChanged="OnHeatValueChanged"
+                                          ToolTip="Intensity; fraction of the signal assigned to document peptides; or document peptides per MS2 spectrum (co-isolated in its window)">
                                     <ComboBoxItem Content="Intensity" />
                                     <ComboBoxItem Content="Assigned fraction" />
                                     <ComboBoxItem Content="Peptides per spectrum" />

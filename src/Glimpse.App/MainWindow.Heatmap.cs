@@ -51,9 +51,10 @@ public partial class MainWindow
                 label = HeatLevel == 1 ? "fraction of binned signal assigned" : "fraction of scan signal assigned";
                 break;
             case 2 when signals is not null:
-                grid = HeatLevel == 1 ? signals.Ms1Count : signals.Ms2Count;
+                // MS2 only (OnHeatValueChanged): the peptides co-isolated in each window.
+                grid = signals.Ms2Count;
                 values = grid.Values;
-                label = (log ? "log10 " : "") + (HeatLevel == 1 ? "peptides eluting per m/z bin" : "peptides per spectrum");
+                label = (log ? "log10 " : "") + "peptides per spectrum";
                 break;
             case 1 or 2:
                 plot.Title(_document.Precursors.Count == 0 ? "Needs a Skyline document with results" : "Measuring document signals...");
@@ -109,6 +110,20 @@ public partial class MainWindow
             }
         }
         return result;
+    }
+
+    /// <summary>
+    /// Peptides per spectrum is an MS2 measure, the peptides co-isolated in each window, so choosing it
+    /// moves the level to MS2 and greys out MS1; any other value makes MS1 available again.
+    /// </summary>
+    private void OnHeatValueChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        var peptidesPerSpectrum = HeatValueCombo.SelectedIndex == 2;
+        HeatMs1Item.IsEnabled = !peptidesPerSpectrum;
+        if (peptidesPerSpectrum && HeatLevelCombo.SelectedIndex != 1)
+            HeatLevelCombo.SelectedIndex = 1;   // redraws the heatmap
+        else
+            OnViewOptionChanged(sender, e);
     }
 
     private void OnResetHeatZoom(object sender, System.Windows.RoutedEventArgs e) => ResetHeatZoom();
