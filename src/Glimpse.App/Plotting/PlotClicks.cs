@@ -96,8 +96,29 @@ public static class PlotClicks
     public static void MatchDisplayScale(WpfPlot plot)
     {
         plot.DisplayScale = plot.DetectDisplayScale();
-        plot.Plot.ScaleFactor = plot.DisplayScale;
+        ApplyScale(plot);
         plot.Refresh();
+    }
+
+    /// <summary>
+    /// Grow text and lines with the plot (FigureStyle.SizeScale): a maximized window on a large screen then
+    /// shows the same figure scaled up. Call once; it follows every resize.
+    /// </summary>
+    public static void ScaleWithSize(WpfPlot plot) => plot.SizeChanged += (_, _) =>
+    {
+        // The resize renders the plot anyway; only the scale needs setting before it does.
+        if (ApplyScale(plot))
+            plot.Refresh();
+    };
+
+    /// <summary>The display scale times the size scale; returns true when it changed.</summary>
+    private static bool ApplyScale(WpfPlot plot)
+    {
+        var scale = plot.DisplayScale * Glimpse.Plotting.FigureStyle.SizeScale(plot.ActualWidth, plot.ActualHeight);
+        if (Math.Abs(scale - plot.Plot.ScaleFactor) < 0.005)
+            return false;
+        plot.Plot.ScaleFactor = scale;
+        return true;
     }
 
     /// <summary>The mouse position in the units plottables draw in (see FigureStyle.ToRenderPixel).</summary>

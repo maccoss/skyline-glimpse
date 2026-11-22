@@ -30,6 +30,26 @@ public static class FigureStyle
     /// <summary>XIC line width: heavy for a few traces, hairlines when hundreds overlap and density is the point.</summary>
     public static float XicWidth(int traceCount) => traceCount > 200 ? 1f : traceCount > 20 ? 1.5f : 2.5f;
 
+    /// <summary>The plot size, in device-independent pixels, the sizes above are chosen for.</summary>
+    public const double ReferenceWidth = 1000, ReferenceHeight = 400;
+
+    /// <summary>The most text and lines grow, however large the plot.</summary>
+    public const double MaxSizeScale = 2.5;
+
+    /// <summary>
+    /// How much larger than the sizes above to draw text and lines in a plot of this size (device-independent
+    /// pixels), so a large window shows the same figure scaled up rather than small text and hairlines on a
+    /// big canvas. It follows the plot's area (the geometric mean of the width and height ratios to
+    /// <see cref="ReferenceWidth"/> x <see cref="ReferenceHeight"/>), never below 1, at most
+    /// <see cref="MaxSizeScale"/>.
+    /// </summary>
+    public static double SizeScale(double width, double height)
+    {
+        if (!(width > 0) || !(height > 0) || !double.IsFinite(width) || !double.IsFinite(height))
+            return 1;
+        return Math.Clamp(Math.Sqrt(width / ReferenceWidth * (height / ReferenceHeight)), 1, MaxSizeScale);
+    }
+
     public static void Apply(Plot plot, string xLabel, string yLabel)
     {
         plot.XLabel(xLabel);
