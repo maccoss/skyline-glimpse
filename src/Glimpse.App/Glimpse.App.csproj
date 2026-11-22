@@ -13,7 +13,14 @@
     <PlatformTarget>x64</PlatformTarget>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>false</SelfContained>
+    <!-- Drawn in docs/logo/*.svg; rebuild with build/make-icon.ps1. -->
+    <ApplicationIcon>glimpse.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The window's icon (title bar and taskbar), from the same file as the exe's. -->
+    <Resource Include="glimpse.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="ScottPlot.WPF" Version="5.1.59" />

@@ -1,4 +1,15 @@
+<p align="center">
+  <img src="docs/images/glimpse-logo.png" alt="Glimpse logo: an eye with a coral iris beneath the Space Needle, Mount Rainier and a peak trace" width="390" />
+</p>
+
 # Skyline Glimpse
+
+[![Latest release](https://img.shields.io/github/v/release/maccoss/skyline-glimpse?display_name=tag&label=release)](https://github.com/maccoss/skyline-glimpse/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/maccoss/skyline-glimpse/total?label=downloads&color=success)](https://github.com/maccoss/skyline-glimpse/releases)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4.svg)](https://dotnet.microsoft.com/)
+[![Skyline external tool](https://img.shields.io/badge/Skyline-external_tool-1F4E9A.svg)](https://skyline.ms)
+[![Windows](https://img.shields.io/badge/platform-Windows-0078D6.svg)](https://www.microsoft.com/windows)
 
 A raw-data browser for the open Skyline document, in the spirit of Thermo QualBrowser / FreeStyle and
 SeeMS, that also shows **which signal belongs to which peptide and protein in the document**.
@@ -201,3 +212,4 @@ project.
 | `src/Glimpse.Skyline` | Skyline JSON-RPC connection and report loading (vendored client in `external/SkylineTool`) |
 | `src/Glimpse.App` | WPF window and tool-inf manifest |
 | `tests/Glimpse.Tests` | xUnit, using pwiz's Thermo test files and a fake Skyline that speaks its pipe protocol |
+| `docs/logo` | The icon and logo drawings (SVG); `pwsh build/make-icon.ps1` renders them into `glimpse.ico` and the README logo |

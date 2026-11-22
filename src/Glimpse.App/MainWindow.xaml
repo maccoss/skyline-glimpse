@@ -4,7 +4,7 @@
         xmlns:sp="clr-namespace:ScottPlot.WPF;assembly=ScottPlot.WPF"
         xmlns:doc="clr-namespace:Glimpse.Core.Document;assembly=Glimpse.Core"
         xmlns:local="clr-namespace:Glimpse.App"
-        Title="Glimpse" Height="900" Width="1500"
+        Title="Glimpse" Height="900" Width="1500" Icon="glimpse.ico"
         Loaded="OnLoaded" Closed="OnClosed" PreviewKeyDown="OnPreviewKeyDown">
 
     <Window.Resources>
