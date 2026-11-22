@@ -42,8 +42,8 @@ public class HeatmapTests
         Assert.False(HeatmapScale.OffersLog(HeatmapValue.AssignedFraction));
         Assert.False(HeatmapScale.OffersLog(HeatmapValue.PeptidesPerSpectrum));
 
-        // A linear intensity map tops its color scale at the 90th percentile of the cells with signal.
-        Assert.Equal(0.90, HeatmapScale.IntensitySaturationQuantile);
+        // A linear intensity map tops its color scale at the 95th percentile of the cells with signal.
+        Assert.Equal(0.95, HeatmapScale.IntensitySaturationQuantile);
 
         // The enum follows the window's Value list: Intensity, Assigned fraction, Peptides per spectrum.
         Assert.Equal(new[] { 0, 1, 2 }, new[] { (int)HeatmapValue.Intensity, (int)HeatmapValue.AssignedFraction, (int)HeatmapValue.PeptidesPerSpectrum });

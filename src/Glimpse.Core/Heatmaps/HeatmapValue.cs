@@ -26,7 +26,7 @@ public static class HeatmapScale
     /// A handful of very intense peaks would otherwise set the scale and leave everything else dark: the top
     /// color is set at this quantile instead, and the brighter cells saturate.
     /// </summary>
-    public const double IntensitySaturationQuantile = 0.90;
+    public const double IntensitySaturationQuantile = 0.95;
 
     /// <summary>
     /// The value at quantile <paramref name="q"/> (0-1) of the grid's cells that have signal (finite and

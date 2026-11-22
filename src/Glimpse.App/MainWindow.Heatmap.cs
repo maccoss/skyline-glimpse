@@ -68,8 +68,6 @@ public partial class MainWindow
                 {
                     // Linear: the top color at a high quantile, so a few huge peaks do not leave the rest dark.
                     saturation = HeatmapScale.Quantile(values, HeatmapScale.IntensitySaturationQuantile);
-                    var brightest = (1 - HeatmapScale.IntensitySaturationQuantile) * 100;
-                    label += $" (top {brightest.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}% saturated)";
                 }
                 break;
         }

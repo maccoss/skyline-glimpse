@@ -80,7 +80,7 @@ run (intensity zoomed to the bulk of the peaks).*
 m/z by retention time, for MS1 (peaks binned by m/z) or MS2 (each scan's signal across its isolation
 window). Click any cell to open that spectrum. Three values can be shown:
 
-- **Intensity**, linear with the brightest 10% of cells saturated (so faint signal still shows), or on
+- **Intensity**, linear with the brightest 5% of cells saturated (so faint signal still shows), or on
   a log scale.
 
   ![MS1 intensity heatmap](docs/images/heatmap-ms1-intensity.png)
