@@ -387,7 +387,7 @@ public partial class MainWindow
                 return;
             }
         }
-        RefreshChromatogram(autoscale: false);
+        RefreshChromatogram(autoscale: true);   // zoom to the new selection's XICs
     }
 
     /// <summary>Selections up to this size get one XIC per peptide by default; larger ones a summed trace.</summary>

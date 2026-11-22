@@ -59,7 +59,12 @@ public partial class MainWindow
         ScanFilterCombo.SelectedIndex = 0;
     }
 
-    private void RefreshChromatogram(bool autoscale)
+    /// <param name="autoscale">
+    /// Rescale: the time axis to the selected peptides' XICs (up to 50 of them), else to the whole run;
+    /// intensity from zero. Without it the current zoom is kept.
+    /// </param>
+    /// <param name="fullRun">With <paramref name="autoscale"/>, show the whole run even with XICs (Reset zoom).</param>
+    private void RefreshChromatogram(bool autoscale, bool fullRun = false)
     {
         if (!IsLoaded && _run is null)
             return;
@@ -77,8 +82,8 @@ public partial class MainWindow
         var units = Units;
         var xics = BuildXicTraces(units);
         var hasXics = xics.Count > 0;
-        // Run-level traces go on the right axis when XICs are shown: a TIC is orders of magnitude larger.
-        var runAxis = hasXics ? plot.Axes.Right : plot.Axes.Left;
+        // One intensity axis for everything: an XIC is shown as the part of the TIC it is.
+        var runAxis = plot.Axes.Left;
 
         if (TicCheck.IsChecked == true)
             AddTrace(plot, RunChromatogram.Build(_run.Index, RunTraceKind.Tic, filter, units), Colors.Black, runAxis, hasXics);
@@ -95,34 +100,36 @@ public partial class MainWindow
             var lines = xics.Select(x => new TraceLine(x.Times, x.Values, ColorFor(x.Owner), x.Name, x.Owner)).ToList();
             _xicPlottable = new MultiTracePlottable(lines) { LineWidth = FigureStyle.XicWidth(lines.Count) };
             plot.Add.Plottable(_xicPlottable);
-            plot.Axes.Right.Label.Text = "Run " + IntensityConversion.Label(units).ToLowerInvariant();
-            plot.Axes.Right.IsVisible = plot.GetPlottables().Count() > 1;
             ChromHoverText.Text = $"{lines.Count:N0} XIC trace{(lines.Count == 1 ? "" : "s")}";
         }
         else
         {
-            plot.Axes.Right.Label.Text = "";
-            plot.Axes.Right.IsVisible = false;
             ChromHoverText.Text = "";
         }
+        plot.Axes.Right.Label.Text = "";
+        plot.Axes.Right.IsVisible = false;
 
-        plot.Axes.Left.Label.Text = hasXics ? $"XIC {IntensityConversion.Label(units).ToLowerInvariant()}" : IntensityConversion.Label(units);
+        plot.Axes.Left.Label.Text = IntensityConversion.Label(units);
         plot.Legend.IsVisible = plot.GetPlottables().Count(p => p is not MultiTracePlottable) > 1;
         plot.Legend.Alignment = Alignment.UpperRight;
-        if (autoscale || hasXics)
+        if (autoscale)
         {
             plot.Axes.AutoScale();
-            if (hasXics && xics.Count <= 50)
+            var (rtFirst, rtLast) = (_run.Index.RtFirst, _run.Index.RtLast);
+            if (hasXics && xics.Count <= 50 && !fullRun)
             {
-                // Zoom the time axis to the selection.
-                var t0 = xics.Where(x => x.Times.Length > 0).Select(x => x.Times[0]).DefaultIfEmpty(_run.Index.RtFirst).Min();
-                var t1 = xics.Where(x => x.Times.Length > 0).Select(x => x.Times[^1]).DefaultIfEmpty(_run.Index.RtLast).Max();
+                // Zoom the time axis to the selection, within the run.
+                var t0 = xics.Where(x => x.Times.Length > 0).Select(x => x.Times[0]).DefaultIfEmpty(rtFirst).Min();
+                var t1 = xics.Where(x => x.Times.Length > 0).Select(x => x.Times[^1]).DefaultIfEmpty(rtLast).Max();
                 var pad = Math.Max(0.2, (t1 - t0) * 0.1);
-                plot.Axes.SetLimitsX(t0 - pad, t1 + pad);
+                plot.Axes.SetLimitsX(Math.Max(rtFirst, t0 - pad), Math.Min(rtLast, t1 + pad));
+            }
+            else if (rtLast > rtFirst)
+            {
+                // The whole run, first scan to last: AutoScale's margins would add time before and after it.
+                plot.Axes.SetLimitsX(rtFirst, rtLast);
             }
             plot.Axes.SetLimitsY(0, plot.Axes.GetLimits(plot.Axes.Bottom, plot.Axes.Left).Top, plot.Axes.Left);
-            if (hasXics)
-                plot.Axes.SetLimitsY(0, plot.Axes.GetLimits(plot.Axes.Bottom, plot.Axes.Right).Top, plot.Axes.Right);
         }
         if (_currentScan >= 0)
             MarkChromatogram(_run.Index[_currentScan].RetentionTime);
@@ -241,11 +248,11 @@ public partial class MainWindow
 
     private void OnResetChromZoom(object sender, System.Windows.RoutedEventArgs e) => ResetChromZoom();
 
-    /// <summary>Back to the default view: the selection's time range with XICs, else the whole run, from zero.</summary>
+    /// <summary>Back to the whole run, first retention time to last, intensity from zero.</summary>
     private void ResetChromZoom()
     {
         if (_run is not null)
-            RefreshChromatogram(autoscale: true);
+            RefreshChromatogram(autoscale: true, fullRun: true);
     }
 
     private void MarkChromatogram(double rt)
