@@ -45,9 +45,9 @@ file and spectrum.*
   inside their integrated peaks, each peak once. A peptide listed under two proteins, or two precursors
   whose windows catch the same peak, never count the same signal twice, so a summed XIC stays at or
   below the TIC. The sum of every peptide equals the *Assigned* signal.
-- **One intensity axis.** The TIC, base peak, assigned signal and XICs share one axis, so an XIC shows
-  as the fraction of the TIC it is. A peptide's fragment XIC is often a millionth of an MS1 TIC; tick
-  *Scale XICs separately* to give the XICs their own axis on the right.
+- **XIC axis.** *Scale XICs separately*, on by default, gives the XICs their own axis on the right:
+  a peptide's fragment XIC is often a millionth of an MS1 TIC. Clear it to put every trace on one axis,
+  so an XIC shows as the fraction of the TIC it is.
 - **Click a peptide's trace** to open the spectrum at that point, with that peptide in focus.
 
 ![Per-peptide XICs of eight selected peptides, and the MS2 spectrum opened by clicking one of them](docs/images/xic-per-peptide-ms2.png)

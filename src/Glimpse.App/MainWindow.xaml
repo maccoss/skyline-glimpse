@@ -156,7 +156,7 @@
                                     <ComboBoxItem Content="MS2 fragments" />
                                     <ComboBoxItem Content="MS1 precursor" />
                                 </ComboBox>
-                                <CheckBox x:Name="XicSeparateCheck" Content="Scale XICs separately" Margin="8,0,4,0" VerticalAlignment="Center"
+                                <CheckBox x:Name="XicSeparateCheck" Content="Scale XICs separately" IsChecked="True" Margin="8,0,4,0" VerticalAlignment="Center"
                                           Checked="OnViewOptionChanged" Unchecked="OnViewOptionChanged"
                                           ToolTip="Give the XICs their own intensity axis on the right, scaled to the largest XIC; otherwise they share the TIC's axis" />
                                 <CheckBox x:Name="IntegratedOnlyCheck" Content="Integrated only" IsChecked="True" Margin="8,0,4,0" VerticalAlignment="Center"
