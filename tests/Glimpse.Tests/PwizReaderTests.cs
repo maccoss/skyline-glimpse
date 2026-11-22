@@ -16,7 +16,6 @@ public class PwizReaderTests
     public PwizReaderTests(ITestOutputHelper output) => _out = output;
 
     [Fact]
-    [Trait("Category", TestData.RawData)]
     public void SmallRaw_IndexesEverySpectrum()
     {
         using var source = PwizMsDataSource.Open(TestData.SmallRaw);
@@ -34,11 +33,10 @@ public class PwizReaderTests
     }
 
     [Fact]
-    [Trait("Category", TestData.RawData)]
     public void OnlyThermoRawFilesAreReadOnSeveralThreads()
     {
         Assert.True(PwizMsDataSource.SupportsParallelReaders(TestData.SmallRaw));   // .RAW: any case
-        Assert.True(PwizMsDataSource.SupportsParallelReaders(TestData.ThermoTestFile("BSA-FT-HCD.raw")));
+        Assert.True(PwizMsDataSource.SupportsParallelReaders(TestData.BsaHcdRaw));
         var dir = Directory.CreateTempSubdirectory("glimpse");
         try
         {
@@ -56,10 +54,9 @@ public class PwizReaderTests
     }
 
     [Fact]
-    [Trait("Category", TestData.RawData)]
     public void ThermoHcd_HeaderMatchesPeaks()
     {
-        using var source = PwizMsDataSource.Open(TestData.ThermoTestFile("BSA-FT-HCD.raw"));
+        using var source = PwizMsDataSource.Open(TestData.BsaHcdRaw);
         var index = ScanIndexBuilder.Build(source, centroid: true, Array.Empty<IScanObserver>());
         var ms2 = index.IndicesOfLevel(2);
         Assert.NotEmpty(ms2);
@@ -77,10 +74,9 @@ public class PwizReaderTests
     }
 
     [Fact]
-    [Trait("Category", TestData.RawData)]
     public void ThermoEtd_ReportsEtd()
     {
-        using var source = PwizMsDataSource.Open(TestData.ThermoTestFile("BSA-FT-ETD.raw"));
+        using var source = PwizMsDataSource.Open(TestData.BsaEtdRaw);
         var index = ScanIndexBuilder.Build(source, centroid: true, Array.Empty<IScanObserver>());
         var ms2 = index.IndicesOfLevel(2);
         Assert.NotEmpty(ms2);
@@ -89,10 +85,9 @@ public class PwizReaderTests
     }
 
     [Fact]
-    [Trait("Category", TestData.RawData)]
     public void Chromatogram_IonsUseInjectionTime()
     {
-        using var source = PwizMsDataSource.Open(TestData.ThermoTestFile("BSA-FT-HCD.raw"));
+        using var source = PwizMsDataSource.Open(TestData.BsaHcdRaw);
         var index = ScanIndexBuilder.Build(source, centroid: true, Array.Empty<IScanObserver>());
         // This file is MS2-only, so the all-scans TIC.
         var rate = RunChromatogram.Build(index, RunTraceKind.Tic, ScanFilter.All, IntensityUnits.AsRecorded);
@@ -108,7 +103,6 @@ public class PwizReaderTests
     /// spectrum cap) to run it; otherwise it passes without doing anything.
     /// </summary>
     [Fact]
-    [Trait("Category", TestData.RawData)]
     public void BigRaw_FullPassTiming()
     {
         if (TestData.BigRaw is not { } path)

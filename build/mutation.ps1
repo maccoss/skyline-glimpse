@@ -27,7 +27,9 @@ try {
     foreach ($project in $Projects) {
         $out = Join-Path $root "build\mutation\$($project.Replace('Glimpse.', '').ToLowerInvariant())"
         Write-Host "== $project ==" -ForegroundColor Cyan
-        $args = @('stryker', '--project', "$project.csproj", '--output', $out, '--break-at', $Break)
+        # The Panorama test re-reads a 1.5 GB run for every mutant it covers; the small-file tests cover the same code.
+        $args = @('stryker', '--project', "$project.csproj", '--output', $out, '--break-at', $Break,
+            '--test-case-filter', 'Category!=PanoramaData')
         # The vendored Skyline client is pwiz's code, not Glimpse's.
         if ($project -eq 'Glimpse.Skyline') { $args += @('--mutate', '!**/external/**') }
         dotnet @args

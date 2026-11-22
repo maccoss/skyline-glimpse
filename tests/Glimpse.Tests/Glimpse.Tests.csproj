@@ -12,23 +12,19 @@
   <Import Project="..\..\Pwiz.props" />
 
   <PropertyGroup>
-    <!-- pwiz test data: small Thermo files checked into the ProteoWizard repository. -->
-    <PwizTestDataDir>$(PwizSharpDir)\..\pwiz\data\vendor_readers\Thermo\Reader_Thermo_Test.data</PwizTestDataDir>
-    <PwizExampleDataDir>$(PwizSharpDir)\..\example_data</PwizExampleDataDir>
+    <!-- The ProteoWizard checkout holding pwiz-sharp: its small Thermo test files are used when present,
+         otherwise TestData downloads them. -->
+    <PwizRepoDir>$(PwizSharpDir)\..</PwizRepoDir>
   </PropertyGroup>
 
   <ItemGroup>
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
-      <_Parameter1>PwizTestDataDir</_Parameter1>
-      <_Parameter2>$([System.IO.Path]::GetFullPath('$(PwizTestDataDir)'))</_Parameter2>
+      <_Parameter1>PwizRepoDir</_Parameter1>
+      <_Parameter2>$([System.IO.Path]::GetFullPath('$(PwizRepoDir)'))</_Parameter2>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
       <_Parameter1>RepoRoot</_Parameter1>
       <_Parameter2>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..'))</_Parameter2>
-    </AssemblyAttribute>
-    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
-      <_Parameter1>PwizExampleDataDir</_Parameter1>
-      <_Parameter2>$([System.IO.Path]::GetFullPath('$(PwizExampleDataDir)'))</_Parameter2>
     </AssemblyAttribute>
   </ItemGroup>
 

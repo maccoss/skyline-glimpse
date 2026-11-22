@@ -8,14 +8,11 @@ namespace Glimpse.Tests;
 
 public class PwizParityTests
 {
-    private static string SmallMzml => Path.Combine(Path.GetDirectoryName(TestData.SmallRaw)!, "small.pwiz.1.1.mzML");
-
     [Fact]
-    [Trait("Category", TestData.RawData)]
     public void RawAndConvertedMzmlIndexTheSame()
     {
         using var raw = PwizMsDataSource.Open(TestData.SmallRaw);
-        using var mzml = PwizMsDataSource.Open(SmallMzml);
+        using var mzml = PwizMsDataSource.Open(TestData.SmallMzml);
         var a = ScanIndexBuilder.Build(raw, centroid: false, Array.Empty<IScanObserver>());
         var b = ScanIndexBuilder.Build(mzml, centroid: false, Array.Empty<IScanObserver>());
         Assert.Equal(a.Count, b.Count);
@@ -43,10 +40,9 @@ public class PwizParityTests
     }
 
     [Fact]
-    [Trait("Category", TestData.RawData)]
     public void ReaderDetailsAndRunInfo()
     {
-        using var source = PwizMsDataSource.Open(TestData.ThermoTestFile("BSA-FT-HCD.raw"));
+        using var source = PwizMsDataSource.Open(TestData.BsaHcdRaw);
         Assert.True(source.CanVendorCentroid);
         Assert.NotNull(source.Run.InstrumentModel);
         Assert.Equal("BSA-FT-HCD.raw", source.Run.FileName);

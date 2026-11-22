@@ -16,8 +16,9 @@ runs:
     # checkout pinned to a commit rather than a PackageReference. Sparse and blob-filtered: the pwiz
     # repository is ~3.4 GB, the pwiz-sharp sources ~250 MB.
     #
-    # The pwiz test data (Reader_Thermo_Test.data, example_data) is NOT checked out, so CI runs the tests
-    # with --filter "Category!=RawData" (see tests/Glimpse.Tests/TestData.cs). Run the full suite locally.
+    # The pwiz test data (Reader_Thermo_Test.data, example_data) is NOT checked out: the tests download the
+    # few files they read from GitHub at the same commit (tests/Glimpse.Tests/TestData.cs keeps a copy of
+    # the pin below; bump both together).
     #
     # Pwiz.props reads PWIZ_SHARP_DIR, so later steps need no -p:PwizSharpDir. The workflows set the
     # IAgreeToVendorLicenses environment variable, so the Thermo reader is the real one.

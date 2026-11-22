@@ -53,15 +53,18 @@ Notes follow `release-notes/README.md`: append to `RELEASE_NOTES_next.md` as cha
   kills each meaningful survivor or note why it is equivalent (cannot change behavior).
 - Assert literal expected values, never the code's own constants (comparing an array with itself
   proves nothing - mutation testing found exactly that once).
-- Tests that read instrument files from the pwiz checkout carry `[Trait("Category", TestData.RawData)]`:
-  CI checks out only the pwiz-sharp sources and runs `--filter "Category!=RawData"`.
 - CI (`.github/workflows/ci.yml`) pins pwiz-sharp in `.github/actions/checkout-pwiz-sharp`. Bump that
-  commit deliberately, to the one you tested against locally.
+  commit deliberately, to the one you tested against locally, and `PwizCommit` in `TestData.cs` with it.
 - Test doubles live in `tests/Glimpse.Tests/Fakes.cs` (in-memory run, documents, library) and
   `SkylineConnectionTests.cs` (`FakeSkylineServer`, which speaks Skyline's real pipe protocol).
 
 ## Test data
 
-- pwiz Thermo test files (`BSA-FT-HCD.raw`, `BSA-FT-ETD.raw`, `small.RAW`) are found through
-  `PwizSharpDir`; see `tests/Glimpse.Tests/TestData.cs`.
+- `tests/Glimpse.Tests/TestData.cs` finds every instrument file: the local pwiz checkout, else the cache
+  (`%LOCALAPPDATA%\SkylineGlimpse\test-data`, or `GLIMPSE_TEST_DATA`), else a download checked against a
+  recorded size and SHA-256. pwiz's small Thermo files come from GitHub at the pinned commit; larger runs
+  from Panorama (`MacCoss/DIA-Search-Test-Data`) through curl and the user's netrc. Never read, print or
+  store the netrc or a key: curl `-n` reads it.
+- A test that downloads from Panorama carries `[Trait("Category", TestData.PanoramaData)]`, returns early
+  when the file is unavailable, and is filtered out in CI (no credentials there).
 - `GLIMPSE_BIG_RAW` (+ optional `GLIMPSE_BIG_RAW_MAX`) times a pass over a real run.

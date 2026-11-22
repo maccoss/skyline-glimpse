@@ -7,7 +7,7 @@
   Usage:
     pwsh build/coverage.ps1                 # summary, classes under 90% listed
     pwsh build/coverage.ps1 -MinimumPercent 90   # also fail when any Glimpse project is below 90%
-    pwsh build/coverage.ps1 -MinimumPercent 90 -Projects Glimpse.Core,Glimpse.Library -Filter "Category!=RawData"
+    pwsh build/coverage.ps1 -MinimumPercent 90 -Projects Glimpse.Core,Glimpse.Library -Filter "Category!=PanoramaData"
                                             # CI: gate only these projects, skip the raw-file tests
 #>
 param(

@@ -30,14 +30,11 @@ jobs:
       - name: Check out pwiz-sharp
         uses: ./.github/actions/checkout-pwiz-sharp
 
-      # The raw-file tests read pwiz test data that the sparse checkout leaves out (Category=RawData);
-      # everything else runs. The Pwiz project's coverage comes from those tests, so it is not gated here.
+      # pwiz's small Thermo test files are downloaded from GitHub by the tests (tests/Glimpse.Tests/TestData.cs).
+      # The test that downloads a run from Panorama (Category=PanoramaData) needs credentials CI does not have.
       - name: Test with coverage gate
         shell: pwsh
-        run: >
-          ./build/coverage.ps1 -MinimumPercent 90
-          -Projects Glimpse.Core,Glimpse.Library,Glimpse.Plotting,Glimpse.Skyline
-          -Filter "Category!=RawData"
+        run: ./build/coverage.ps1 -MinimumPercent 90 -Filter "Category!=PanoramaData"
 
       - name: Package SkylineGlimpse.zip
         run: dotnet msbuild build/package.proj /p:Configuration=Release

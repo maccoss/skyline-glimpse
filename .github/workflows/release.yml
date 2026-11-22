@@ -45,9 +45,9 @@ jobs:
       - name: Check out pwiz-sharp
         uses: ./.github/actions/checkout-pwiz-sharp
 
-      # The raw-file tests need pwiz test data the sparse checkout leaves out; run them locally before tagging.
+      # The Panorama test needs credentials CI does not have; package-and-verify.ps1 runs it locally.
       - name: Test
-        run: dotnet test Glimpse.sln --configuration Release --filter "Category!=RawData"
+        run: dotnet test Glimpse.sln --configuration Release --filter "Category!=PanoramaData"
 
       - name: Package SkylineGlimpse.zip
         run: dotnet msbuild build/package.proj /p:Configuration=Release

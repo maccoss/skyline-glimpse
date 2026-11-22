@@ -188,16 +188,30 @@ dotnet test Glimpse.sln
 pwsh build/package-and-verify.ps1     # version check, tests, publish/SkylineGlimpse.zip, launch check
 ```
 
-`GLIMPSE_BIG_RAW=<path to a .raw>` makes the test suite time a full pass over a real run.
+### Test data
+
+The tests read a few instrument files that are not in this repository
+([`TestData.cs`](tests/Glimpse.Tests/TestData.cs)). Each comes from the ProteoWizard checkout when it is
+there, else from a cache in `%LOCALAPPDATA%\SkylineGlimpse\test-data` (or `GLIMPSE_TEST_DATA`), else it is
+downloaded into the cache once and checked against its recorded size and SHA-256:
+
+- pwiz's small Thermo test files (`BSA-FT-HCD.raw`, `BSA-FT-ETD.raw`, `small.RAW` and its mzML, 7 MB)
+  from the public ProteoWizard repository on GitHub.
+- A Stellar HeLa DIA run (1.5 GB mzML) from the lab's `MacCoss/DIA-Search-Test-Data` folder on
+  [Panorama](https://panoramaweb.org/MacCoss/DIA-Search-Test-Data/project-begin.view), through curl and
+  your netrc (`machine panoramaweb.org`, login `apikey`, a Reader API key). Without access the test passes
+  without doing anything.
+
+`GLIMPSE_BIG_RAW=<path to a .raw>` (optionally `GLIMPSE_BIG_RAW_MAX=<spectra>`) also times a pass over a
+run of your own.
 
 ### Continuous integration
 
 [`ci.yml`](.github/workflows/ci.yml) runs on every pull request and push to `main`: it checks out
 pwiz-sharp at the commit pinned in [`checkout-pwiz-sharp`](.github/actions/checkout-pwiz-sharp/action.yml),
-runs the tests with a 90% line-coverage gate on Core, Library, Plotting and Skyline, then packages and
-launch-verifies `SkylineGlimpse.zip` and keeps it as a build artifact. The tests that read pwiz's Thermo test
-files (`Category=RawData`) are skipped there, since CI checks out only the pwiz-sharp sources; run the full
-suite locally. [`release.yml`](.github/workflows/release.yml) builds the zip for a `v*` tag and publishes
+runs the tests with a 90% line-coverage gate on every Glimpse project, then packages and launch-verifies
+`SkylineGlimpse.zip` and keeps it as a build artifact. The Panorama test (`Category=PanoramaData`) is skipped
+there, since CI has no Panorama credentials. [`release.yml`](.github/workflows/release.yml) builds the zip for a `v*` tag and publishes
 the GitHub Release.
 
 ### Test quality
