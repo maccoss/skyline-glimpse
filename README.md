@@ -24,7 +24,7 @@ lets you browse that file with every peak traced back to the peptide that explai
 *An Orbitrap Astral DIA run against a 69,000-precursor document, with every protein selected. Top: the
 MS1 XICs of all 60,161 peptides (66,209 precursor traces), zoomed to 10-12 min, each in its peptide's
 color; the highlighted trace is the one under the mouse. Bottom: the MS1 spectrum at the dashed line,
-where 716 document peptides explain 61% of the signal, each peak labeled by the peptide it belongs to.
+where 675 document peptides explain 61% of the signal, each peak labeled by the peptide it belongs to.
 Left: the document's proteins and the selection. Right: the properties of the file, spectrum and
 focused peptide.*
 
@@ -60,7 +60,7 @@ focused peptide.*
 ![Per-peptide XICs of fibrinogen gamma over the MS1 TIC, and an annotated MS2 spectrum](docs/images/xic-per-peptide-ms2.png)
 
 *Fibrinogen gamma's 36 peptides selected in Skyline: their MS2 fragment XICs (right axis) over the
-whole-run MS1 TIC. Clicking a trace at 11.46 min opened that DIA scan: eight document peptides share
+whole-run MS1 TIC. Clicking a trace at 11.46 min opened that DIA scan: six document peptides share
 the 3 m/z window, and TNLLQVC[+57]ER's b and y ions explain 15% of its signal. Black peaks marked `*`
 are claimed by more than one peptide.*
 
@@ -99,7 +99,8 @@ window). Click any cell to open that spectrum. Three values can be shown:
 - **Every document peptide in the spectrum is labeled**, its peaks colored by peptide. In MS1, a
   precursor isotope names its peptide and charge ("AGYVLHR 2+ M+2"); in MS2, fragments carry their ion
   names ("y7", "b4++"). A peak that matches more than one ion is marked with `*`, and the hover tooltip
-  lists every owner.
+  lists every owner. A peptide listed under several proteins is one peptide here: labeled, listed and
+  counted once.
 - **The legend** lists the peptides in the spectrum with the share of signal each explains. Click one
   to focus it and dim the rest.
 - **Choose what is labeled**, as in Skyline's spectrum graph: the document's transitions, the ions
