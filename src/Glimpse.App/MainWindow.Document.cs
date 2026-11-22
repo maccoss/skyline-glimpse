@@ -78,12 +78,10 @@ public partial class MainWindow
             _document = model;
             _settings = settings;
             _library = library;
-            _candidates = new SpectrumCandidates(model.Precursors);
+            _candidates = new SpectrumCandidates(model.Precursors, settings.IsolationScheme);
             _peakLoads.Clear();
             DocumentTree.ItemsSource = model.Proteins;
-            _treeSelection.Clear();
-            _treeExpanded.Clear();
-            _treeAnchor = null;
+            _tree.Reset();
             DocumentText.Text = $"{(model.DocumentPath is null ? "Unsaved document" : Path.GetFileName(model.DocumentPath))}: "
                 + $"{model.Proteins.Count:N0} proteins, {model.Peptides.Count:N0} peptides, {model.Precursors.Count:N0} precursors, "
                 + $"{model.TransitionCount:N0} transitions, {model.ResultFiles.Count:N0} result files"
@@ -322,9 +320,13 @@ public partial class MainWindow
             _selectionPollBusy = true;
             try
             {
-                // Skip this beat while one of Glimpse's own reports holds Skyline: it would only wait.
+                // Skip this beat while one of Glimpse's own reports holds Skyline: it would only wait. Drop the
+                // answer when Glimpse sent a selection meanwhile: it may be Skyline's selection from before.
+                if (_syncGate.Pushing)
+                    return;
+                var poll = _syncGate.BeginPoll();
                 var (asked, selection) = await Task.Run(() => skyline.TryCall(c => c.GetSelection(), out var s) ? (true, s) : (false, null));
-                if (!asked)
+                if (!asked || !_syncGate.IsCurrent(poll))
                     return;
                 var locators = selection?.Locators ?? Array.Empty<string>();
                 if (_lastPollFailed)
@@ -334,6 +336,9 @@ public partial class MainWindow
                 if (key == _lastSkylineSelection)
                     return;
                 _lastSkylineSelection = key;
+                // Glimpse's own last selection coming back, possibly after the tree moved on: not a change in Skyline.
+                if (_syncGate.TakeEcho(locators.Select(_document.ElementForLocator).OfType<object>()))
+                    return;
                 if (!ShowSkylineSelection(locators))
                 {
                     // Locators that name no tree element (an unusual locator form): select their peptides.

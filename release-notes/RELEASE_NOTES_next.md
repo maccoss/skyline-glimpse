@@ -19,6 +19,11 @@ signal belongs to which peptide.
 - The chromatogram is drawn while a data file is read, so a long run shows its TIC from the first seconds.
 - On connecting, Glimpse opens the data file of the replicate Skyline is showing.
 - MS1 peaks are labeled with the peptide and charge they belong to ("LMSPTGGR 2+ M+1"), not just the isotope.
+- MS2 signal is assigned by the document's DIA isolation scheme, as Skyline extracts it: a precursor in the
+  margin between two windows counts in one of them, and a set precursor filter or All Ions scheme is honoured.
+  With an Overlap scheme each scan's own window is used, as Skyline does (Glimpse does not demultiplex).
+- Several proteins, peptides from different proteins, or every protein (Ctrl+click, Shift+click, Ctrl+A),
+  kept in step with Skyline's selection both ways.
 - Plots are styled for figures: larger axis text, heavier axes and ticks, thicker traces and spectrum sticks,
   drawn at the screen's scale on high-DPI displays.
 
@@ -29,3 +34,7 @@ signal belongs to which peptide.
   columns (36 s a report) and reads reports as Parquet rather than CSV.
 - A file's peaks are fetched before it is read, so the document's signals are measured in the same pass
   over the file instead of a second one (about a minute saved on an Astral run).
+- A Thermo .raw file is read on several threads (up to 6, a quarter of the processor's cores): about
+  50 s for a 180,000-spectrum Astral run instead of 80 s.
+- XICs for a selection of more than 200 peptides are built in the background, so the window stays usable
+  while every peptide of a large document is summed.

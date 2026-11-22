@@ -13,16 +13,16 @@ namespace Glimpse.App;
 /// Several proteins, peptides from different proteins, or everything at once in the document tree.
 /// WPF's TreeView selects one item, so the selection is kept here: Ctrl+click adds or removes an item,
 /// Shift+click selects the visible rows from the last click to this one (Ctrl+Shift adds them), and
-/// Ctrl+A selects every protein.
+/// Ctrl+A selects every protein. The rules are <see cref="TreeSelectionState"/>'s; this turns clicks and
+/// keys into them and keeps the selection in step with Skyline's.
 /// </summary>
 public partial class MainWindow
 {
-    private readonly HashSet<object> _treeSelection = new();
-    private object? _treeAnchor;
-    private readonly HashSet<object> _treeExpanded = new();
+    private readonly TreeSelectionState _tree = new();
+    private readonly SelectionSyncGate _syncGate = new();
 
     /// <summary>The items selected in the tree (bound by the row highlight).</summary>
-    public IReadOnlySet<object> TreeSelection => _treeSelection;
+    public IReadOnlySet<object> TreeSelection => _tree.Items;
 
     public static readonly DependencyProperty TreeSelectionVersionProperty =
         DependencyProperty.Register(nameof(TreeSelectionVersion), typeof(int), typeof(MainWindow), new PropertyMetadata(0));
@@ -98,12 +98,7 @@ public partial class MainWindow
     private void TrackExpansion(RoutedEventArgs e, bool expanded)
     {
         if (e.OriginalSource is TreeViewItem { DataContext: { } item })
-        {
-            if (expanded)
-                _treeExpanded.Add(item);
-            else
-                _treeExpanded.Remove(item);
-        }
+            _tree.SetExpanded(item, expanded);
     }
 
     private void OnDocumentTreePreviewMouseDown(object sender, MouseButtonEventArgs e)
@@ -112,20 +107,15 @@ public partial class MainWindow
         if (item is null)
             return;
         var mods = Keyboard.Modifiers;
-        if (mods.HasFlag(ModifierKeys.Shift) && _treeAnchor is not null)
+        if (mods.HasFlag(ModifierKeys.Shift) && _tree.Anchor is not null)
         {
-            var range = VisibleRange(_treeAnchor, item);
-            if (!mods.HasFlag(ModifierKeys.Control))
-                _treeSelection.Clear();
-            _treeSelection.UnionWith(range);
+            _tree.SelectRange(_document, item, add: mods.HasFlag(ModifierKeys.Control));
             ApplyTreeSelection();
             e.Handled = true;
         }
         else if (mods.HasFlag(ModifierKeys.Control))
         {
-            if (!_treeSelection.Remove(item))
-                _treeSelection.Add(item);
-            _treeAnchor = item;
+            _tree.Toggle(item);
             ApplyTreeSelection();
             e.Handled = true;
         }
@@ -145,8 +135,7 @@ public partial class MainWindow
     {
         if (e.Key == Key.A && Keyboard.Modifiers == ModifierKeys.Control)
         {
-            _treeSelection.Clear();
-            _treeSelection.UnionWith(_document.Proteins);
+            _tree.SelectAll(_document);
             ApplyTreeSelection();
             e.Handled = true;
         }
@@ -160,43 +149,35 @@ public partial class MainWindow
 
     private void SelectSingle(object item)
     {
-        _treeSelection.Clear();
-        _treeSelection.Add(item);
-        _treeAnchor = item;
+        _tree.SelectSingle(item);
         ApplyTreeSelection();
     }
 
-    /// <summary>Show the tree's selection and select its peptides, in document order.</summary>
+    /// <summary>
+    /// Show the tree's selection and select its peptides, in document order. Ctrl+clicking the last
+    /// selected item away selects nothing (and leaves Skyline's selection as it is).
+    /// </summary>
     private void ApplyTreeSelection()
     {
         TreeSelectionVersion++;
-        if (_treeSelection.Count == 0)
-            return;
-        var peptides = _document.PeptidesOf(_treeSelection);
-        if (peptides.Count > 0)
-            SetSelection(peptides, "Glimpse");
-        PushSelectionToSkyline();
+        SetSelection(_tree.Peptides(_document), "Glimpse");
+        if (_tree.Count > 0)
+            PushSelectionToSkyline();
     }
 
     /// <summary>More tree items than this are not sent to Skyline (selecting thousands of nodes there is slow).</summary>
     private const int MaxPushedLocators = 1000;
 
     /// <summary>Select the tree's selection in Skyline's Targets view too.</summary>
-    private void PushSelectionToSkyline()
+    /// <remarks>
+    /// Until Skyline has answered, the selection poll's answers are dropped (<see cref="SelectionSyncGate"/>):
+    /// one that started earlier would bring back Skyline's old selection and undo this one.
+    /// </remarks>
+    private async void PushSelectionToSkyline()
     {
         if (_skyline is null || FollowSkylineCheck.IsChecked != true)
             return;
-        // The last-clicked item first: Skyline shows its primary selection.
-        var ordered = _treeAnchor is not null && _treeSelection.Contains(_treeAnchor)
-            ? _treeSelection.Where(i => !ReferenceEquals(i, _treeAnchor)).Prepend(_treeAnchor)
-            : _treeSelection;
-        var locators = ordered.Select(i => i switch
-        {
-            DocProtein p => p.Locator,
-            DocPeptide p => p.Locator,
-            DocPrecursor p => p.Locator,
-            _ => null,
-        }).OfType<string>().ToList();
+        var locators = _tree.Locators();
         if (locators.Count == 0)
             return;
         if (locators.Count > MaxPushedLocators)
@@ -207,17 +188,19 @@ public partial class MainWindow
         var skyline = _skyline;
         var first = locators[0];
         var rest = locators.Count > 1 ? string.Join("\n", locators.Skip(1)) : null;
-        _ = Task.Run(() =>
+        _syncGate.BeginPush(_tree.Items);
+        try
         {
-            try
-            {
-                skyline.Call(c => c.SetSelectedElement(first, rest));
-            }
-            catch (Exception ex)
-            {
-                App.WriteLog("Could not select in Skyline: " + ex.Message);
-            }
-        });
+            await Task.Run(() => skyline.Call(c => c.SetSelectedElement(first, rest)));
+        }
+        catch (Exception ex)
+        {
+            App.WriteLog("Could not select in Skyline: " + ex.Message);
+        }
+        finally
+        {
+            _syncGate.EndPush();
+        }
     }
 
     /// <summary>
@@ -230,15 +213,12 @@ public partial class MainWindow
         if (items.Count == 0)
             return false;
         // The selection Glimpse just sent, coming back: nothing to do.
-        if (_treeSelection.SetEquals(items))
+        if (!_tree.ReplaceWith(items))
             return true;
-        _treeSelection.Clear();
-        _treeSelection.UnionWith(items);
-        _treeAnchor = items[0];
         TreeSelectionVersion++;
         ClearNativeTreeSelection();
         RevealInTree(items[0]);
-        var peptides = _document.PeptidesOf(_treeSelection);
+        var peptides = _tree.Peptides(_document);
         if (peptides.Count > 0)
             SetSelection(peptides, "Skyline");
         return true;
@@ -326,36 +306,11 @@ public partial class MainWindow
         return null;
     }
 
-
     /// <summary>Forget the tree's selection (the selection now comes from Skyline).</summary>
     private void ClearTreeSelection()
     {
-        if (_treeSelection.Count == 0)
-            return;
-        _treeSelection.Clear();
-        TreeSelectionVersion++;
-    }
-
-    /// <summary>The rows from one item to another as the tree shows them (expanded nodes' children included).</summary>
-    private List<object> VisibleRange(object from, object to)
-    {
-        var rows = new List<object>();
-        foreach (var protein in _document.Proteins)
-        {
-            rows.Add(protein);
-            if (!_treeExpanded.Contains(protein))
-                continue;
-            foreach (var peptide in protein.Peptides)
-            {
-                rows.Add(peptide);
-                if (_treeExpanded.Contains(peptide))
-                    rows.AddRange(peptide.Precursors);
-            }
-        }
-        int a = rows.IndexOf(from), b = rows.IndexOf(to);
-        if (a < 0 || b < 0)
-            return new List<object> { to };
-        return rows.GetRange(Math.Min(a, b), Math.Abs(a - b) + 1);
+        if (_tree.Clear())
+            TreeSelectionVersion++;
     }
 
     /// <summary>The data item of the tree row under the mouse, or null over an expander or empty space.</summary>

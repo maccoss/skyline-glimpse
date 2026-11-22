@@ -38,6 +38,15 @@ public sealed partial class PwizMsDataSource : IMsDataSource
     /// <summary>File extensions (and directory suffixes) this build can open.</summary>
     public static IReadOnlyList<string> SupportedExtensions { get; } = new[] { ".raw", ".mzml", ".mzxml", ".mz5", ".mzml.gz" };
 
+    /// <summary>
+    /// True when several open copies of the file read it faster than one: a Thermo .raw file, which the
+    /// vendor library opens at once and reads spectrum by spectrum. Each copy of an mzML file would parse
+    /// its index again (a gzipped one decompresses the whole file to do so), and a Waters .raw folder is
+    /// not known to be safe to read on several threads.
+    /// </summary>
+    public static bool SupportsParallelReaders(string path) =>
+        path.EndsWith(".raw", StringComparison.OrdinalIgnoreCase) && File.Exists(path);
+
     /// <summary>Open a data file. Throws with the reader's message when the file cannot be read.</summary>
     public static PwizMsDataSource Open(string path)
     {

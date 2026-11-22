@@ -15,6 +15,9 @@ public partial class MainWindow
     private readonly List<ScanFilter> _scanFilters = new();
     private ScottPlot.Plottables.VerticalLine? _chromMarker;
     private MultiTracePlottable? _xicPlottable;
+    private readonly XicBuildCache _xicCache = new();
+    private bool _xicPendingAutoscale;
+    private bool _xicPendingFullRun;
 
     private ScanFilter CurrentChromFilter =>
         ScanFilterCombo.SelectedIndex >= 0 && ScanFilterCombo.SelectedIndex < _scanFilters.Count
@@ -80,7 +83,7 @@ public partial class MainWindow
 
         var filter = CurrentChromFilter;
         var units = Units;
-        var xics = BuildXicTraces(units);
+        var xics = XicTracesFor(units, autoscale, fullRun, out var buildingXics);
         var hasXics = xics.Count > 0;
         // One intensity axis for everything, so an XIC is shown as the part of the TIC it is; or, with
         // "Scale XICs separately", the XICs on their own axis on the right (a peptide's fragments are a
@@ -111,7 +114,7 @@ public partial class MainWindow
         }
         else
         {
-            ChromHoverText.Text = "";
+            ChromHoverText.Text = buildingXics ? $"Building XICs for {_selectedPeptides.Count:N0} peptides..." : "";
         }
         plot.Axes.Right.Label.Text = separateXicAxis ? "XIC " + IntensityConversion.Label(units).ToLowerInvariant() : "";
         plot.Axes.Right.IsVisible = separateXicAxis;
@@ -170,12 +173,64 @@ public partial class MainWindow
         StatusText.Text = $"Reading {fileName}: {preview.Fraction:P0} of the run ({soFar.RtLast:0.0} of {preview.RtLast:0.0} min), {elapsed.TotalSeconds:0} s";
     }
 
-    private List<XicTrace> BuildXicTraces(IntensityUnits units)
+    /// <summary>Selections up to this many peptides have their XICs built at once; larger ones in the background.</summary>
+    /// <remarks>Every peptide of a 69,000-precursor document takes seconds to sum: the window must not freeze meanwhile.</remarks>
+    private const int MaxImmediateXicPeptides = 200;
+
+    /// <summary>
+    /// The XICs of the selection, built at once or kept from last time. A large selection is built in the
+    /// background: none are returned (<paramref name="building"/> is set) and the chromatogram is drawn
+    /// again, with the view asked for, once they are ready.
+    /// </summary>
+    private List<XicTrace> XicTracesFor(IntensityUnits units, bool autoscale, bool fullRun, out bool building)
     {
+        building = false;
         if (_run?.Signals is not { } signals || _selectedPeptides.Count == 0 || CurrentXicMode == XicMode.Off)
+        {
+            _xicCache.Store(null, new List<XicTrace>());
             return new List<XicTrace>();
-        return XicTraces.Build(_run.Index, signals, _selectedPeptides, CurrentXicMode, ms1: XicLevelCombo.SelectedIndex == 1, units,
-            integratedOnly: IntegratedOnlyCheck.IsChecked == true);
+        }
+        var request = new XicRequest(_run.Index, signals, _selectedPeptides, CurrentXicMode, Ms1: XicLevelCombo.SelectedIndex == 1, units,
+            IntegratedOnly: IntegratedOnlyCheck.IsChecked == true);
+        if (_xicCache.TryGet(request, out var traces))
+            return traces;
+        if (request.Peptides.Count <= MaxImmediateXicPeptides)
+        {
+            traces = request.Build();
+            _xicCache.Store(request, traces);
+            return traces;
+        }
+        building = true;
+        if (_xicCache.Start(request))
+        {
+            _xicPendingAutoscale = false;
+            _xicPendingFullRun = false;
+            BuildXicsInBackground(request);
+        }
+        _xicPendingAutoscale |= autoscale;
+        _xicPendingFullRun = fullRun;
+        return traces;
+    }
+
+    private async void BuildXicsInBackground(XicRequest request)
+    {
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        List<XicTrace> traces;
+        try
+        {
+            traces = await Task.Run(request.Build);
+        }
+        catch (Exception ex)
+        {
+            App.WriteLog("Could not build the XICs: " + ex.Message);
+            _xicCache.Fail(request);
+            ChromHoverText.Text = "Could not build the XICs";
+            return;
+        }
+        if (!_xicCache.Complete(request, traces))
+            return;   // the selection or the view changed meanwhile
+        App.WriteLog($"XICs for {request.Peptides.Count:N0} peptides ({traces.Count:N0} traces) in {clock.ElapsedMilliseconds:N0} ms");
+        RefreshChromatogram(_xicPendingAutoscale, _xicPendingFullRun);
     }
 
     private Color ColorFor(object? owner) => owner switch

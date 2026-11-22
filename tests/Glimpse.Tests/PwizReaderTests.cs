@@ -33,6 +33,27 @@ public class PwizReaderTests
     }
 
     [Fact]
+    public void OnlyThermoRawFilesAreReadOnSeveralThreads()
+    {
+        Assert.True(PwizMsDataSource.SupportsParallelReaders(TestData.SmallRaw));   // .RAW: any case
+        Assert.True(PwizMsDataSource.SupportsParallelReaders(TestData.ThermoTestFile("BSA-FT-HCD.raw")));
+        var dir = Directory.CreateTempSubdirectory("glimpse");
+        try
+        {
+            var waters = Directory.CreateDirectory(Path.Combine(dir.FullName, "run.raw")).FullName;
+            var mzml = Path.Combine(dir.FullName, "run.mzML");
+            File.WriteAllText(mzml, "");
+            Assert.False(PwizMsDataSource.SupportsParallelReaders(waters));   // a Waters folder
+            Assert.False(PwizMsDataSource.SupportsParallelReaders(mzml));
+            Assert.False(PwizMsDataSource.SupportsParallelReaders(Path.Combine(dir.FullName, "missing.raw")));
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public void ThermoHcd_HeaderMatchesPeaks()
     {
         using var source = PwizMsDataSource.Open(TestData.ThermoTestFile("BSA-FT-HCD.raw"));

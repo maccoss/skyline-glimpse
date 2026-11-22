@@ -20,17 +20,20 @@ public sealed record CandidateOptions
 
 /// <summary>
 /// Finds the document precursors that belong in a spectrum: eluting at its retention time (inside
-/// Skyline's integrated peak in this file) and, for MS2, with precursor m/z inside its isolation window.
+/// Skyline's integrated peak in this file) and, for MS2, with precursor m/z in the range Skyline extracts
+/// from the scan (its isolation scheme's window, or the scan's own isolation window when there is none).
 /// </summary>
 public sealed class SpectrumCandidates
 {
     private readonly DocPrecursor[] _byMz;
     private readonly double[] _mz;
+    private readonly IsolationScheme? _scheme;
 
-    public SpectrumCandidates(IEnumerable<DocPrecursor> precursors)
+    public SpectrumCandidates(IEnumerable<DocPrecursor> precursors, IsolationScheme? scheme = null)
     {
         _byMz = precursors.Where(p => double.IsFinite(p.Mz)).OrderBy(p => p.Mz).ToArray();
         _mz = _byMz.Select(p => p.Mz).ToArray();
+        _scheme = scheme;
     }
 
     public IReadOnlyList<DocPrecursor> Find(in ScanHeader scan, string fileName, CandidateOptions options)
@@ -39,10 +42,10 @@ public sealed class SpectrumCandidates
         int from = 0, to = _byMz.Length;
         if (scan.MsLevel >= 2)
         {
-            if (!scan.HasIsolationWindow)
+            if (IsolationScheme.RangeFor(_scheme, scan) is not { } range)
                 return result;
-            from = SpectrumData.LowerBound(_mz, scan.IsolationLower);
-            to = SpectrumData.LowerBound(_mz, scan.IsolationUpper);
+            from = SpectrumData.LowerBound(_mz, range.Lo);
+            to = SpectrumData.LowerBound(_mz, range.Hi);
         }
         for (var i = from; i < to; i++)
         {

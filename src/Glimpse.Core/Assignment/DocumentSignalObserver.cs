@@ -15,7 +15,8 @@ namespace Glimpse.Core.Assignment;
 /// </summary>
 /// <remarks>
 /// A precursor's claims are its document transitions (MS1: its precursor isotope transitions, or M to
-/// M+2 when it has none; MS2: its fragment transitions) inside the document's extraction tolerance.
+/// M+2 when it has none; MS2: its fragment transitions, in the scans Skyline extracts it from by the
+/// document's isolation scheme) inside the document's extraction tolerance.
 /// It claims signal only inside Skyline's integrated peak in this file; the XIC extends
 /// <see cref="XicMarginMinutes"/> beyond it so the peak can be seen in context.
 /// </remarks>
@@ -27,6 +28,7 @@ public sealed class DocumentSignalObserver : IScanObserver
     private readonly FilePrecursor[] _byStart;
     private readonly int _maxColumns;
     private readonly double _mzBin;
+    private readonly IsolationScheme? _scheme;
 
     private float[] _assigned = Array.Empty<float>();
     private ushort[] _counts = Array.Empty<ushort>();
@@ -54,6 +56,7 @@ public sealed class DocumentSignalObserver : IScanObserver
         XicMarginMinutes = xicMarginMinutes;
         _mzBin = mzBinTh;
         _maxColumns = maxColumns;
+        _scheme = settings.IsolationScheme;
         var list = new List<FilePrecursor>();
         foreach (var p in document.Precursors)
         {
@@ -111,10 +114,12 @@ public sealed class DocumentSignalObserver : IScanObserver
             foreach (var f in _active)
                 inPeak += Extract(spectrum, f, f.Ms1, f.Ms1Xic, f.Ms1Claims, rt, countMs1Bins: true);
         }
-        else if (h.MsLevel >= 2 && h.HasIsolationWindow)
+        else if (h.MsLevel >= 2 && IsolationScheme.RangeFor(_scheme, h) is { } range)
         {
-            var from = SpectrumData.LowerBound(_mz, h.IsolationLower);
-            for (var i = from; i < _byMz.Length && _mz[i] < h.IsolationUpper; i++)
+            // The precursors Skyline extracts from this scan: by the document's isolation scheme, so a
+            // precursor in the overlap of two windows is extracted from one of them only.
+            var from = SpectrumData.LowerBound(_mz, range.Lo);
+            for (var i = from; i < _byMz.Length && _mz[i] < range.Hi; i++)
             {
                 var f = _byMz[i];
                 if (rt >= f.Start - XicMarginMinutes && rt <= f.End + XicMarginMinutes)

@@ -75,8 +75,8 @@ window). Click any cell to open that spectrum. Three values can be shown:
   ![MS1 intensity heatmap](docs/images/heatmap-ms1-intensity.png)
 
 - **Peptides per spectrum** (MS2): how many document precursors are co-isolated in each MS2 scan,
-  inside its isolation window and inside their integrated peak at that time. This shows where the
-  method is crowded.
+  inside the precursor range Skyline extracts from it (by the document's isolation scheme) and inside
+  their integrated peak at that time. This shows where the method is crowded.
 
   ![MS2 peptides-per-spectrum heatmap](docs/images/heatmap-ms2-peptides-per-spectrum.png)
 

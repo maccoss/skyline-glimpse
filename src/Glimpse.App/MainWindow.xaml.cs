@@ -379,24 +379,30 @@ public partial class MainWindow : Window
         private const int MaxReaderThreads = 6;
 
         /// <summary>
-        /// More open copies of the file for the pass. A copy that cannot be opened is skipped: the pass
-        /// then reads on fewer threads.
+        /// More open copies of the file for the pass, opened side by side (each takes as long as the first).
+        /// None for a file that does not read faster that way. A copy that cannot be opened is skipped: the
+        /// pass then reads on fewer threads.
         /// </summary>
         private static List<IMsDataSource> OpenExtraReaders(string path)
         {
-            var extra = new List<IMsDataSource>();
-            for (var i = 1; i < ReaderThreads; i++)
+            if (!PwizMsDataSource.SupportsParallelReaders(path) || ReaderThreads <= 1)
+                return new List<IMsDataSource>();
+            var opened = new IMsDataSource?[ReaderThreads - 1];
+            Exception? failure = null;
+            Parallel.For(0, opened.Length, i =>
             {
                 try
                 {
-                    extra.Add(PwizMsDataSource.Open(path));
+                    opened[i] = PwizMsDataSource.Open(path);
                 }
                 catch (Exception ex)
                 {
-                    App.WriteLog($"Reading {Path.GetFileName(path)} on {extra.Count + 1} threads: another copy would not open ({ex.Message})");
-                    break;
+                    failure = ex;
                 }
-            }
+            });
+            var extra = opened.OfType<IMsDataSource>().ToList();
+            if (failure is not null)
+                App.WriteLog($"Reading {Path.GetFileName(path)} on {extra.Count + 1} threads: other copies would not open ({failure.Message})");
             return extra;
         }
 

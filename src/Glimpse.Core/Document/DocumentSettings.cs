@@ -33,6 +33,9 @@ public sealed record DocumentSettings
 
     public string? AcquisitionMethod { get; init; }
 
+    /// <summary>The DIA isolation scheme (transition_full_scan's isolation_scheme), or null when there is none.</summary>
+    public IsolationScheme? IsolationScheme { get; init; }
+
     public static DocumentSettings Parse(string xml)
     {
         var root = XDocument.Parse(xml).Root;
@@ -54,6 +57,7 @@ public sealed record DocumentSettings
                     (string?)fullScan.Attribute("product_mass_analyzer"), (string?)fullScan.Attribute("product_res"),
                     (string?)fullScan.Attribute("product_res_mz"), (string?)fullScan.Attribute("selective_extraction"))
                     ?? result.ProductTolerance,
+                IsolationScheme = IsolationScheme.From(fullScan.Element("isolation_scheme")),
             };
         }
 
