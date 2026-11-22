@@ -20,8 +20,13 @@ public sealed record XicTrace(string Name, double[] Times, double[] Values, obje
 public static class XicTraces
 {
     /// <param name="ms1">True for the MS1 precursor-isotope traces, false for the MS2 fragment traces.</param>
+    /// <param name="integratedOnly">
+    /// Keep only each precursor's points between Skyline's integration boundaries in this file, instead of
+    /// the whole extracted window (the peak plus a margin on each side).
+    /// </param>
     public static List<XicTrace> Build(
-        ScanIndex index, DocumentSignals signals, IReadOnlyList<DocPeptide> peptides, XicMode mode, bool ms1, IntensityUnits units)
+        ScanIndex index, DocumentSignals signals, IReadOnlyList<DocPeptide> peptides, XicMode mode, bool ms1, IntensityUnits units,
+        bool integratedOnly = false)
     {
         var result = new List<XicTrace>();
         if (mode == XicMode.Off || peptides.Count == 0)
@@ -36,7 +41,10 @@ public static class XicTraces
             {
                 if (signals.Xics.TryGetValue(precursor, out var xic))
                 {
-                    var trace = Points(index, ms1 ? xic.Ms1Scans : xic.Ms2Scans, ms1 ? xic.Ms1Values : xic.Ms2Values, units);
+                    var (from, to) = (double.NegativeInfinity, double.PositiveInfinity);
+                    if (integratedOnly && precursor.Peaks.TryGetValue(signals.FileName, out var peak) && peak.HasBoundaries)
+                        (from, to) = (peak.Start, peak.End);
+                    var trace = Points(index, ms1 ? xic.Ms1Scans : xic.Ms2Scans, ms1 ? xic.Ms1Values : xic.Ms2Values, units, from, to);
                     if (trace.T.Length > 0)
                         parts.Add(trace);
                 }
@@ -74,7 +82,8 @@ public static class XicTraces
         return result;
     }
 
-    private static (double[] T, double[] Y) Points(ScanIndex index, int[] scans, float[] values, IntensityUnits units)
+    /// <summary>A trace's points from <paramref name="from"/> to <paramref name="to"/> minutes, inclusive.</summary>
+    private static (double[] T, double[] Y) Points(ScanIndex index, int[] scans, float[] values, IntensityUnits units, double from, double to)
     {
         var t = new List<double>(scans.Length);
         var y = new List<double>(scans.Length);
@@ -83,7 +92,7 @@ public static class XicTraces
         {
             var h = index[scans[i]];
             var v = IntensityConversion.Convert(values[i], h.InjectionTimeMs, units);
-            if (double.IsNaN(v) || double.IsNaN(h.RetentionTime))
+            if (double.IsNaN(v) || double.IsNaN(h.RetentionTime) || h.RetentionTime < from || h.RetentionTime > to)
                 continue;
             if (h.RetentionTime <= lastT)
             {

@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:sp="clr-namespace:ScottPlot.WPF;assembly=ScottPlot.WPF"
         xmlns:doc="clr-namespace:Glimpse.Core.Document;assembly=Glimpse.Core"
+        xmlns:local="clr-namespace:Glimpse.App"
         Title="Glimpse" Height="900" Width="1500"
         Loaded="OnLoaded" Closed="OnClosed" PreviewKeyDown="OnPreviewKeyDown">
 
@@ -12,6 +13,7 @@
                 <PropertyGroupDescription PropertyName="Category" />
             </CollectionViewSource.GroupDescriptions>
         </CollectionViewSource>
+        <local:TreeSelectionBrushConverter x:Key="TreeSelectionBrush" />
     </Window.Resources>
 
     <DockPanel>
@@ -77,8 +79,21 @@
                     <ProgressBar x:Name="DocumentProgress" Height="6" Margin="4,0,4,4" IsIndeterminate="True" Visibility="Collapsed" />
                 </StackPanel>
                 <TreeView Grid.Row="2" x:Name="DocumentTree" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
-                          SelectedItemChanged="OnDocumentTreeSelectionChanged" MouseDoubleClick="OnDocumentTreeDoubleClick">
+                          SelectedItemChanged="OnDocumentTreeSelectionChanged" MouseDoubleClick="OnDocumentTreeDoubleClick"
+                          PreviewMouseLeftButtonDown="OnDocumentTreePreviewMouseDown" KeyDown="OnDocumentTreeKeyDown">
                     <TreeView.Resources>
+                        <!-- Rows in the multi-selection (see MainWindow.TreeSelection.cs). -->
+                        <Style TargetType="TreeViewItem">
+                            <Setter Property="Background">
+                                <Setter.Value>
+                                    <MultiBinding Converter="{StaticResource TreeSelectionBrush}">
+                                        <Binding />
+                                        <Binding Path="TreeSelection" RelativeSource="{RelativeSource AncestorType=Window}" />
+                                        <Binding Path="TreeSelectionVersion" RelativeSource="{RelativeSource AncestorType=Window}" />
+                                    </MultiBinding>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
                         <HierarchicalDataTemplate DataType="{x:Type doc:DocProtein}" ItemsSource="{Binding Peptides}">
                             <TextBlock Text="{Binding Name}" ToolTip="{Binding Accession}" />
                         </HierarchicalDataTemplate>
@@ -96,8 +111,9 @@
                 </TreeView>
                 <DockPanel Grid.Row="3" Margin="4,6,4,2">
                     <CheckBox DockPanel.Dock="Right" x:Name="FollowSkylineCheck" Content="Follow Skyline" IsChecked="True"
-                              ToolTip="Track the selection in Skyline's Targets view" />
-                    <TextBlock x:Name="SelectionHeader" Text="Selection" FontWeight="SemiBold" />
+                              ToolTip="Keep the selection in step with Skyline's Targets view, both ways" />
+                    <TextBlock x:Name="SelectionHeader" Text="Selection" FontWeight="SemiBold"
+                               ToolTip="In the tree above: Ctrl+click to add or remove a protein or peptide, Shift+click for a range, Ctrl+A for every protein" />
                 </DockPanel>
                 <ListBox Grid.Row="4" x:Name="SelectionList" VirtualizingPanel.IsVirtualizing="True"
                          MouseDoubleClick="OnSelectionListDoubleClick" DisplayMemberPath="ModifiedSequence" />
@@ -127,7 +143,7 @@
                                           Checked="OnViewOptionChanged" Unchecked="OnViewOptionChanged"
                                           ToolTip="Signal in each scan that belongs to document peptides (each peak counted once)" />
                                 <TextBlock Text="XIC:" Margin="12,0,4,0" VerticalAlignment="Center" />
-                                <ComboBox x:Name="XicModeCombo" Width="110" SelectedIndex="0" SelectionChanged="OnViewOptionChanged"
+                                <ComboBox x:Name="XicModeCombo" Width="110" SelectedIndex="0" SelectionChanged="OnXicModeChanged"
                                           ToolTip="XICs of the selected peptides: none, one summed trace, one per protein, or one per peptide (no limit)">
                                     <ComboBoxItem Content="Off" />
                                     <ComboBoxItem Content="Summed" />
@@ -139,6 +155,10 @@
                                     <ComboBoxItem Content="MS2 fragments" />
                                     <ComboBoxItem Content="MS1 precursor" />
                                 </ComboBox>
+                                <CheckBox x:Name="IntegratedOnlyCheck" Content="Integrated only" IsChecked="True" Margin="8,0,4,0" VerticalAlignment="Center"
+                                          Checked="OnViewOptionChanged" Unchecked="OnViewOptionChanged"
+                                          ToolTip="Draw each XIC only between Skyline's integration boundaries; clear it to see the minute around each peak too" />
+                                <Button Content="Reset zoom" Margin="12,0,0,0" Padding="6,0" Click="OnResetChromZoom" ToolTip="Show the whole plot again (or double-click or middle-click the plot)" />
                                 <TextBlock x:Name="ChromHoverText" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="Gray" />
                             </StackPanel>
                             <sp:WpfPlot x:Name="ChromPlot" />
@@ -161,6 +181,7 @@
                                 </ComboBox>
                                 <CheckBox x:Name="HeatLogCheck" Content="Log scale" IsChecked="True" Margin="12,0" VerticalAlignment="Center"
                                           Checked="OnViewOptionChanged" Unchecked="OnViewOptionChanged" />
+                                <Button Content="Reset zoom" Margin="12,0,0,0" Padding="6,0" Click="OnResetHeatZoom" ToolTip="Show the whole plot again (or double-click or middle-click the plot)" />
                             </StackPanel>
                             <sp:WpfPlot x:Name="HeatPlot" />
                         </DockPanel>
@@ -192,6 +213,7 @@
                         <CheckBox x:Name="IgnoreRtCheck" Content="Ignore RT" Margin="6,0" VerticalAlignment="Center"
                                   Checked="OnLabelOptionChanged" Unchecked="OnLabelOptionChanged"
                                   ToolTip="Consider every document precursor whose m/z is in the isolation window, not just those inside their integrated peak" />
+                        <Button Content="Reset zoom" Margin="12,0,0,0" Padding="6,0" Click="OnResetSpectrumZoom" ToolTip="Show the whole plot again (or double-click or middle-click the plot)" />
                     </StackPanel>
                     <DockPanel DockPanel.Dock="Top" Margin="2">
                         <Button DockPanel.Dock="Left" Content="&#x25C0;" Width="28" Click="OnPreviousScan" ToolTip="Previous scan of the same kind (Left arrow)" />

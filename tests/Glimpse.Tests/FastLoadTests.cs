@@ -115,6 +115,52 @@ public class FastLoadTests : IDisposable
     }
 
     [Fact]
+    public void SkylineLocatorsNameTheTreeElementToSelect()
+    {
+        var transitions = CsvTable.Read(new StringReader(
+            "ProteinName,PeptideSequence,PeptideModifiedSequenceMonoisotopicMasses,PrecursorCharge,PrecursorMz,IsotopeLabelType,FragmentIon,ProductMz\n"
+            + "P1,AAK,AAK,2,200,light,y2,147\n"
+            + "P1,AAK,AAK,3,134,light,y2,147\n"
+            + "Decoys/1,KAA,KAA,2,200,light,y2,147\n"));
+        var model = DocumentModelBuilder.Build(null, transitions, null);
+        var protein = model.Proteins[0];
+        var peptide = model.Peptides[0];
+
+        Assert.Same(protein, model.ElementForLocator("MoleculeGroup:/P1"));
+        Assert.Same(peptide, model.ElementForLocator("Molecule:/P1/AAK"));
+        Assert.Same(model.Precursors[1], model.ElementForLocator("Precursor:/P1/AAK/light+++"));
+        // A transition selects its precursor; one of a precursor the document lacks, the peptide above it.
+        Assert.Same(model.Precursors[0], model.ElementForLocator("Transition:/P1/AAK/light++/y2"));
+        Assert.Same(peptide, model.ElementForLocator("Precursor:/P1/AAK/heavy++"));
+        // Result qualifiers are ignored, quoted names with a slash work, and unknown elements give null.
+        Assert.Same(peptide, model.ElementForLocator("Molecule:/P1/AAK?ResultFile=a.raw"));
+        Assert.Same(model.Proteins[1], model.ElementForLocator("MoleculeGroup:/\"Decoys/1\""));
+        Assert.Same(model.Peptides[1], model.ElementForLocator("Molecule:/\"Decoys/1\"/KAA"));
+        Assert.Null(model.ElementForLocator("MoleculeGroup:/P9"));
+        Assert.Null(model.ElementForLocator(""));
+    }
+
+    [Fact]
+    public void ASelectionOfProteinsPeptidesAndPrecursorsGivesEachPeptideOnceInDocumentOrder()
+    {
+        var p1 = new DocProtein("P1", null, null, null);
+        var p2 = new DocProtein("P2", null, null, null);
+        var a = Docs.Precursor(p1, "AAK", 2, 300, "f.raw", 1, 2);
+        var b = Docs.Precursor(p1, "CCK", 2, 310, "f.raw", 1, 2);
+        var c = Docs.Precursor(p2, "DDK", 2, 320, "f.raw", 1, 2);
+        var d = Docs.Precursor(p2, "EEK", 3, 330, "f.raw", 1, 2);
+        var model = new DocumentModel(null, new[] { p1, p2 }, Array.Empty<ResultFileInfo>());
+
+        // Several proteins: all their peptides.
+        Assert.Equal(new[] { a.Peptide, b.Peptide, c.Peptide, d.Peptide }, model.PeptidesOf(new HashSet<object> { p2, p1 }));
+        // Peptides from different proteins, given out of order: document order.
+        Assert.Equal(new[] { a.Peptide, d.Peptide }, model.PeptidesOf(new HashSet<object> { d.Peptide, a.Peptide }));
+        // A precursor selects its peptide; a protein and one of its own peptides give that peptide once.
+        Assert.Equal(new[] { a.Peptide, b.Peptide, c.Peptide }, model.PeptidesOf(new HashSet<object> { p1, a.Peptide, c }));
+        Assert.Empty(model.PeptidesOf(new HashSet<object>()));
+    }
+
+    [Fact]
     public void PeaksMatchPrecursorsByName()
     {
         var transitions = CsvTable.Read(new StringReader(

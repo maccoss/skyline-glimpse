@@ -37,6 +37,7 @@ public partial class MainWindow : Window
         InitChromatogram();
         InitHeatmap();
         InitSpectrum();
+        InitTreeSelection();
     }
 
     /// <summary>Rows shown in the properties panel.</summary>

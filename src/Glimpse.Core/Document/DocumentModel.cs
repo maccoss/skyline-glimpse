@@ -37,6 +37,21 @@ public sealed class DocumentModel
     public bool HasPeaksFor(string fileName) => Precursors.Any(p => p.Peaks.ContainsKey(fileName));
 
     /// <summary>
+    /// The peptides of a set of selected proteins, peptides and precursors, each once and in document
+    /// order: a protein gives all its peptides, a peptide itself, a precursor its peptide.
+    /// </summary>
+    public List<DocPeptide> PeptidesOf(IReadOnlySet<object> selected)
+    {
+        var result = new List<DocPeptide>();
+        foreach (var peptide in Peptides)
+        {
+            if (selected.Contains(peptide) || selected.Contains(peptide.Protein) || peptide.Precursors.Any(selected.Contains))
+                result.Add(peptide);
+        }
+        return result;
+    }
+
+    /// <summary>
     /// The peptides a Skyline selection locator refers to, in document order: a protein selects all its
     /// peptides, a peptide itself, a precursor or transition its peptide.
     /// </summary>
@@ -65,10 +80,34 @@ public sealed class DocumentModel
         return found.Distinct().Order().Select(i => Peptides[i]).ToList();
     }
 
+    /// <summary>
+    /// The tree element a Skyline selection locator names: its protein, peptide or precursor, or for a
+    /// transition (or anything else beneath a precursor) the nearest element above it. Null when the
+    /// document has no such element.
+    /// </summary>
+    public object? ElementForLocator(string locator)
+    {
+        var path = LocatorPath(locator);
+        if (path.Length == 0)
+            return null;
+        var index = _locatorIndex.Value;
+        // The longest prefix of the path (the whole path first) that names an element.
+        for (var end = path.Length; end > 0; end = path.LastIndexOf('/', end - 1))
+        {
+            var prefix = path[..end];
+            if (index.Elements.TryGetValue(prefix, out var element))
+                return element;
+        }
+        return null;
+    }
+
     private readonly Lazy<LocatorIndex> _locatorIndex;
 
-    /// <summary>Peptide positions by their locator path, and by every path that path starts with.</summary>
-    private sealed record LocatorIndex(Dictionary<string, List<int>> ByPath, Dictionary<string, List<int>> ByAncestor);
+    /// <summary>
+    /// Peptide positions by their locator path and by every path that path starts with; and every protein,
+    /// peptide and precursor by its own path.
+    /// </summary>
+    private sealed record LocatorIndex(Dictionary<string, List<int>> ByPath, Dictionary<string, List<int>> ByAncestor, Dictionary<string, object> Elements);
 
     private LocatorIndex BuildLocatorIndex()
     {
@@ -89,7 +128,21 @@ public sealed class DocumentModel
             for (var cut = own.IndexOf('/', 1); cut > 0; cut = own.IndexOf('/', cut + 1))
                 Add(byAncestor, own[..cut], i);
         }
-        return new LocatorIndex(byPath, byAncestor);
+        var elements = new Dictionary<string, object>(StringComparer.Ordinal);
+        foreach (var protein in Proteins)
+            AddElement(elements, protein.Locator, protein);
+        foreach (var peptide in Peptides)
+            AddElement(elements, peptide.Locator, peptide);
+        foreach (var precursor in Precursors)
+            AddElement(elements, precursor.Locator, precursor);
+        return new LocatorIndex(byPath, byAncestor, elements);
+    }
+
+    private static void AddElement(Dictionary<string, object> elements, string? locator, object element)
+    {
+        var path = LocatorPath(locator);
+        if (path.Length > 0)
+            elements.TryAdd(path, element);
     }
 
     /// <summary>The path part of a locator ("Molecule:/protein/peptide" gives "/protein/peptide").</summary>

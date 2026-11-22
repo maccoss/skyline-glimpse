@@ -27,6 +27,7 @@ public partial class MainWindow
     {
         StylePlot(ChromPlot.Plot, "Retention time (min)", "Intensity");
         PlotClicks.OnClick(ChromPlot, c => OnChromatogramClick(c.X));
+        PlotClicks.OnReset(ChromPlot, ResetChromZoom);
         ChromPlot.MouseMove += OnChromatogramMouseMove;
     }
 
@@ -81,7 +82,7 @@ public partial class MainWindow
         if (TicCheck.IsChecked == true)
             AddTrace(plot, RunChromatogram.Build(_run.Index, RunTraceKind.Tic, filter, units), Colors.Black, runAxis, hasXics);
         if (BpcCheck.IsChecked == true)
-            AddTrace(plot, RunChromatogram.Build(_run.Index, RunTraceKind.BasePeak, filter, units), Colors.SteelBlue, runAxis, hasXics);
+            AddTrace(plot, RunChromatogram.Build(_run.Index, RunTraceKind.BasePeak, filter, units), Color.FromHex("#1F4E9A"), runAxis, hasXics);
         if (AssignedCheck.IsChecked == true && _run.Signals is { } signals)
         {
             // Drawn over the TIC: total and assigned side by side, the gap between them unassigned.
@@ -95,11 +96,13 @@ public partial class MainWindow
             plot.Add.Plottable(_xicPlottable);
             plot.Axes.Right.Label.Text = "Run " + IntensityConversion.Label(units).ToLowerInvariant();
             plot.Axes.Right.IsVisible = plot.GetPlottables().Count() > 1;
+            ChromHoverText.Text = $"{lines.Count:N0} XIC trace{(lines.Count == 1 ? "" : "s")}";
         }
         else
         {
             plot.Axes.Right.Label.Text = "";
             plot.Axes.Right.IsVisible = false;
+            ChromHoverText.Text = "";
         }
 
         plot.Axes.Left.Label.Text = hasXics ? $"XIC {IntensityConversion.Label(units).ToLowerInvariant()}" : IntensityConversion.Label(units);
@@ -154,7 +157,8 @@ public partial class MainWindow
     {
         if (_run?.Signals is not { } signals || _selectedPeptides.Count == 0 || CurrentXicMode == XicMode.Off)
             return new List<XicTrace>();
-        return XicTraces.Build(_run.Index, signals, _selectedPeptides, CurrentXicMode, ms1: XicLevelCombo.SelectedIndex == 1, units);
+        return XicTraces.Build(_run.Index, signals, _selectedPeptides, CurrentXicMode, ms1: XicLevelCombo.SelectedIndex == 1, units,
+            integratedOnly: IntegratedOnlyCheck.IsChecked == true);
     }
 
     private Color ColorFor(object? owner) => owner switch
@@ -182,7 +186,8 @@ public partial class MainWindow
         if (trace.Count == 0)
             return;
         var signal = plot.Add.SignalXY(trace.Times, trace.Values);
-        signal.Color = dimmed ? color.WithAlpha(0.45) : color;
+        // Behind XICs the run traces recede, but must stay readable (0.45 washed a blue trace out).
+        signal.Color = dimmed ? color.WithAlpha(0.6) : color;
         signal.LineWidth = FigureStyle.TraceWidth;
         signal.LegendText = trace.Name;
         signal.Axes.YAxis = axis;
@@ -230,7 +235,16 @@ public partial class MainWindow
             _xicPlottable.Highlighted = nearest;
             ChromPlot.Refresh();
         }
-        ChromHoverText.Text = nearest?.Name ?? $"{_xicPlottable.Traces.Count:N0} XIC traces";
+        ChromHoverText.Text = nearest?.Name ?? $"{_xicPlottable.Traces.Count:N0} XIC trace{(_xicPlottable.Traces.Count == 1 ? "" : "s")}";
+    }
+
+    private void OnResetChromZoom(object sender, System.Windows.RoutedEventArgs e) => ResetChromZoom();
+
+    /// <summary>Back to the default view: the selection's time range with XICs, else the whole run, from zero.</summary>
+    private void ResetChromZoom()
+    {
+        if (_run is not null)
+            RefreshChromatogram(autoscale: true);
     }
 
     private void MarkChromatogram(double rt)

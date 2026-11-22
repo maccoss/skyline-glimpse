@@ -81,6 +81,9 @@ public partial class MainWindow
             _candidates = new SpectrumCandidates(model.Precursors);
             _peakLoads.Clear();
             DocumentTree.ItemsSource = model.Proteins;
+            _treeSelection.Clear();
+            _treeExpanded.Clear();
+            _treeAnchor = null;
             DocumentText.Text = $"{(model.DocumentPath is null ? "Unsaved document" : Path.GetFileName(model.DocumentPath))}: "
                 + $"{model.Proteins.Count:N0} proteins, {model.Peptides.Count:N0} peptides, {model.Precursors.Count:N0} precursors, "
                 + $"{model.TransitionCount:N0} transitions, {model.ResultFiles.Count:N0} result files"
@@ -282,12 +285,15 @@ public partial class MainWindow
                 ? $"{rep}  ({file.FileName})"
                 : file.FileName;
             _suppressFileCombo = true;
-            FileCombo.Items.Add(new ComboBoxItem
+            var item = new ComboBoxItem { Content = label, ToolTip = file.FilePath };
+            // Only a missing file is grayed. Setting Foreground to null for the others made their text
+            // invisible: every row of the list drew blank.
+            if (!File.Exists(file.FilePath) && !Directory.Exists(file.FilePath))
             {
-                Content = label,
-                ToolTip = file.FilePath,
-                Foreground = File.Exists(file.FilePath) || Directory.Exists(file.FilePath) ? null : System.Windows.Media.Brushes.Gray,
-            });
+                item.Foreground = System.Windows.Media.Brushes.Gray;
+                item.ToolTip = file.FilePath + " (not found)";
+            }
+            FileCombo.Items.Add(item);
             _suppressFileCombo = false;
         }
     }
@@ -328,9 +334,16 @@ public partial class MainWindow
                 if (key == _lastSkylineSelection)
                     return;
                 _lastSkylineSelection = key;
-                var peptides = locators.SelectMany(_document.PeptidesForLocator).Distinct().ToList();
-                if (peptides.Count > 0)
-                    SetSelection(peptides, "Skyline");
+                if (!ShowSkylineSelection(locators))
+                {
+                    // Locators that name no tree element (an unusual locator form): select their peptides.
+                    var peptides = locators.SelectMany(_document.PeptidesForLocator).Distinct().ToList();
+                    if (peptides.Count > 0)
+                    {
+                        ClearTreeSelection();
+                        SetSelection(peptides, "Skyline");
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -355,23 +368,41 @@ public partial class MainWindow
             : new Dictionary<DocPeptide, ScottPlot.Color>();
         SelectionList.ItemsSource = peptides;
         SelectionHeader.Text = $"Selection: {peptides.Count:N0} peptide{(peptides.Count == 1 ? "" : "s")} ({source})";
-        if (peptides.Count > 0 && XicModeCombo.SelectedIndex == 0)
-            XicModeCombo.SelectedIndex = peptides.Count == 1 ? 3 : 1; // show something as soon as there is a selection
-        else
-            RefreshChromatogram(autoscale: false);
+        // Show something as soon as there is a selection: each peptide in its own color (as in the spectrum),
+        // or one summed trace for a selection too large to tell apart. A mode the user picked is kept.
+        if (peptides.Count > 0 && (XicModeCombo.SelectedIndex == 0 || !_xicModeChosen))
+        {
+            var mode = peptides.Count <= MaxAutoPerPeptide ? (int)Core.Chromatograms.XicMode.PerPeptide : (int)Core.Chromatograms.XicMode.Summed;
+            if (XicModeCombo.SelectedIndex != mode)
+            {
+                _settingXicMode = true;
+                try
+                {
+                    XicModeCombo.SelectedIndex = mode;   // refreshes the chromatogram
+                }
+                finally
+                {
+                    _settingXicMode = false;
+                }
+                return;
+            }
+        }
+        RefreshChromatogram(autoscale: false);
     }
 
-    private void OnDocumentTreeSelectionChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+    /// <summary>Selections up to this size get one XIC per peptide by default; larger ones a summed trace.</summary>
+    private const int MaxAutoPerPeptide = 100;
+
+    /// <summary>True once the user has picked an XIC mode, which selections then keep.</summary>
+    private bool _xicModeChosen;
+
+    private bool _settingXicMode;
+
+    private void OnXicModeChanged(object sender, SelectionChangedEventArgs e)
     {
-        var peptides = e.NewValue switch
-        {
-            DocProtein protein => protein.Peptides.ToList(),
-            DocPeptide peptide => new List<DocPeptide> { peptide },
-            DocPrecursor precursor => new List<DocPeptide> { precursor.Peptide },
-            _ => null,
-        };
-        if (peptides is { Count: > 0 })
-            SetSelection(peptides, "Glimpse");
+        if (!_settingXicMode && IsLoaded)
+            _xicModeChosen = true;
+        OnViewOptionChanged(sender, e);
     }
 
     private void OnDocumentTreeDoubleClick(object sender, MouseButtonEventArgs e) =>

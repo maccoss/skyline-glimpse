@@ -23,9 +23,13 @@ file and spectrum.*
 - **Intensity or ions.** Orbitrap and Astral intensities are ion arrival rates (ions/s). Switching
   units to *Ions* multiplies each point by its scan's injection time, Skyline's own convention
   (`intensity x injection time / 1000`).
-- **XICs for any number of peptides**, with no top-N cap: summed into one trace, one trace per
-  protein, or one per peptide. The XICs use the peptides' MS1 precursor isotopes or their MS2 document
-  transitions. Selecting a protein in Skyline (or in Glimpse's tree) draws all of its peptides.
+- **XICs for any number of peptides**, with no top-N cap: one per peptide, each in its own color as
+  in the spectrum (the default for up to 100 peptides), one per protein, or one summed trace. The XICs
+  use the peptides' MS1 precursor isotopes or their MS2 document transitions. Selecting a protein draws
+  all of its peptides.
+- **Integrated peaks.** With *Integrated only* on (the default), each XIC is drawn only between
+  Skyline's integration boundaries in this file, so the trace is the peak Skyline integrated. Clear it
+  to see the minute around each peak as well.
 - **Click a peptide's trace** to open the spectrum at that point, with that peptide in focus.
 
 ![Per-peptide XICs of eight selected peptides, and the MS2 spectrum opened by clicking one of them](docs/images/xic-per-peptide-ms2.png)
@@ -94,10 +98,21 @@ A panel you can show or hide, modeled on Skyline's Full-Scan properties:
 - **Library match:** the BiblioSpec entry's source and ID files, score, library retention time, and a
   dot product against the spectrum on screen.
 
-### Following Skyline
+### Selecting proteins and peptides
 
-With *Follow Skyline* on, selecting proteins or peptides in Skyline's Targets view selects them in
-Glimpse and draws their XICs. Double-click a peptide in Glimpse to select it in Skyline.
+In Glimpse's document tree, click a protein, peptide or precursor to select it. Ctrl+click adds or
+removes one, Shift+click selects the rows from the last click to this one (Ctrl+Shift+click adds them),
+and Ctrl+A selects every protein. Any mix works: several proteins, or peptides from different proteins.
+
+With *Follow Skyline* on, the selection stays in step with Skyline's Targets view in both directions.
+Selecting in Skyline selects and scrolls to the same elements in Glimpse, and selecting in Glimpse
+selects them in Skyline (up to 1,000 elements at a time).
+
+### Zooming
+
+On any plot, left-drag a rectangle to zoom into it, scroll the wheel to zoom, middle-drag to pan, and
+right-drag to stretch an axis. *Reset zoom* above the plot, a double-click or a middle-click returns to
+the whole run or spectrum, with intensity from zero.
 
 ## Speed
 
@@ -118,8 +133,9 @@ Requires Skyline-daily, the .NET 10.0 Desktop Runtime, and Windows 10 version 20
 1. In Skyline, choose Tools > External Tools > Add > From File..., and pick `SkylineGlimpse.zip`.
 2. Open a document with results, then choose Tools > Glimpse...
 
-Glimpse connects to the document it was launched from and opens the replicate Skyline is showing. It
-also runs on its own: `SkylineGlimpse.exe <data file>`, or Open file... in the window.
+Glimpse connects to the document it was launched from and opens the replicate Skyline is showing.
+Every data file imported into the document is listed under *File* (grayed when it is not on disk),
+so any replicate is one pick away. Glimpse also runs on its own: `SkylineGlimpse.exe <data file>`, or Open file... in the window.
 
 Glimpse reads Thermo `.raw`, mzML and mzXML for now (see [Vendor readers](#vendor-readers)).
 

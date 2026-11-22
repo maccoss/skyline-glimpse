@@ -43,7 +43,21 @@ public partial class MainWindow
     {
         StylePlot(SpectrumPlot.Plot, "m/z", "Intensity");
         SpectrumPlot.MouseMove += OnSpectrumMouseMove;
+        PlotClicks.OnReset(SpectrumPlot, ResetSpectrumZoom);
         BuildLabelMenus();
+    }
+
+    private void OnResetSpectrumZoom(object sender, RoutedEventArgs e) => ResetSpectrumZoom();
+
+    /// <summary>The whole spectrum again, intensity from zero.</summary>
+    private void ResetSpectrumZoom()
+    {
+        if (_sticks is null)
+            return;
+        var plot = SpectrumPlot.Plot;
+        plot.Axes.AutoScale();
+        plot.Axes.SetLimitsY(0, plot.Axes.GetLimits().Top);
+        SpectrumPlot.Refresh();
     }
 
     private void BuildLabelMenus()

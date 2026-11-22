@@ -16,6 +16,7 @@ public partial class MainWindow
     {
         StylePlot(HeatPlot.Plot, "Retention time (min)", "m/z");
         PlotClicks.OnClick(HeatPlot, c => OnHeatmapClick(c.X, c.Y));
+        PlotClicks.OnReset(HeatPlot, ResetHeatZoom);
     }
 
     private void RefreshHeatmap(bool autoscale)
@@ -108,6 +109,14 @@ public partial class MainWindow
             }
         }
         return result;
+    }
+
+    private void OnResetHeatZoom(object sender, System.Windows.RoutedEventArgs e) => ResetHeatZoom();
+
+    private void ResetHeatZoom()
+    {
+        if (_run is not null)
+            RefreshHeatmap(autoscale: true);
     }
 
     private void OnHeatmapClick(double rt, double mz)

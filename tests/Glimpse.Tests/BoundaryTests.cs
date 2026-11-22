@@ -149,6 +149,39 @@ public class BoundaryTests
         Assert.Empty(XicTraces.Build(index, signals, new[] { empty.Peptide }, XicMode.Summed, false, IntensityUnits.AsRecorded));
     }
 
+    [Fact]
+    public void XicsCanBeLimitedToTheIntegratedPeak()
+    {
+        var protein = new DocProtein("P", null, null, null);
+        // Integrated from 2 to 3 min in run1.raw; extracted (peak plus margin) from 1 to 4 min.
+        var p = Docs.Precursor(protein, "AK", 2, 405.0, "run1.raw", 2.0, 3.0, ("y2", 1, 300.0));
+        // Integrated only in another file: nothing to limit it to here, so its whole trace stays.
+        var other = Docs.Precursor(protein, "EK", 2, 405.0, "run2.raw", 2.0, 3.0, ("y2", 1, 300.0));
+        var source = new FakeSource();
+        foreach (var rt in new[] { 1.0, 2.0, 2.5, 3.0, 4.0 })
+            source.Ms2(rt, 400, 410, new[] { 300.0 }, new[] { rt * 10 });
+        var index = ScanIndexBuilder.Build(source, false, Array.Empty<IScanObserver>());
+        var scans = new[] { 0, 1, 2, 3, 4 };
+        var values = new[] { 10f, 20f, 25f, 30f, 40f };
+        var xics = new Dictionary<DocPrecursor, PrecursorXic>
+        {
+            [p] = new PrecursorXic(p, Array.Empty<int>(), Array.Empty<float>(), scans, values),
+            [other] = new PrecursorXic(other, Array.Empty<int>(), Array.Empty<float>(), scans, values),
+        };
+        var signals = new DocumentSignals("run1.raw", new float[5], new ushort[5], xics,
+            HeatmapGridEmpty(), HeatmapGridEmpty(), HeatmapGridEmpty(), HeatmapGridEmpty(), 2);
+
+        var whole = XicTraces.Build(index, signals, new[] { p.Peptide }, XicMode.PerPeptide, false, IntensityUnits.AsRecorded).Single();
+        Assert.Equal(new[] { 1.0, 2.0, 2.5, 3.0, 4.0 }, whole.Times);
+
+        var peak = XicTraces.Build(index, signals, new[] { p.Peptide }, XicMode.PerPeptide, false, IntensityUnits.AsRecorded, integratedOnly: true).Single();
+        Assert.Equal(new[] { 2.0, 2.5, 3.0 }, peak.Times);       // boundaries inclusive
+        Assert.Equal(new[] { 20.0, 25.0, 30.0 }, peak.Values);
+
+        var unbounded = XicTraces.Build(index, signals, new[] { other.Peptide }, XicMode.PerPeptide, false, IntensityUnits.AsRecorded, integratedOnly: true).Single();
+        Assert.Equal(new[] { 1.0, 2.0, 2.5, 3.0, 4.0 }, unbounded.Times);
+    }
+
     private static Core.Heatmaps.HeatmapGrid HeatmapGridEmpty() => Core.Heatmaps.HeatmapGrid.Empty;
 
     [Fact]
