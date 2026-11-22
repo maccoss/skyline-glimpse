@@ -10,6 +10,12 @@ public partial class MainWindow
     private ScottPlot.Plottables.VerticalLine? _heatMarker;
     private ScottPlot.Panels.ColorBar? _colorBar;
 
+    /// <summary>
+    /// The saturation level of each intensity grid, worked out once: a grid does not change after the pass,
+    /// and the quantile sorts every cell with signal (about a million on an Astral MS1 map).
+    /// </summary>
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<float[,], object> _saturationLevels = new();
+
     private int HeatLevel => HeatLevelCombo.SelectedIndex == 1 ? 2 : 1;
 
     private void InitHeatmap()
@@ -67,7 +73,8 @@ public partial class MainWindow
                 if (!log)
                 {
                     // Linear: the top color at a high quantile, so a few huge peaks do not leave the rest dark.
-                    saturation = HeatmapScale.Quantile(values, HeatmapScale.IntensitySaturationQuantile);
+                    saturation = (double)_saturationLevels.GetValue(values,
+                        g => HeatmapScale.Quantile(g, HeatmapScale.IntensitySaturationQuantile));
                 }
                 break;
         }
