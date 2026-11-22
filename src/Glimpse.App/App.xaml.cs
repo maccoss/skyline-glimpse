@@ -45,6 +45,7 @@ public partial class App : Application
             Report("unobserved task", args.Exception);
             args.SetObserved();
         };
+        Glimpse.Core.Diagnostics.LogFile.RollOver(LogFilePath);
         WriteLog($"==== Glimpse {Version} started ====");
         WriteLog("Args: " + string.Join(" ", e.Args));
         base.OnStartup(e);

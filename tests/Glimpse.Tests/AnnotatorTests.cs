@@ -46,6 +46,29 @@ public class AnnotatorTests
     }
 
     [Fact]
+    public void AHeavyPrecursorGetsItsOwnLibrarySpectrumNotTheLightOne()
+    {
+        var protein = new DocProtein("P", null, null, null);
+        var peptide = new DocPeptide(protein, "PEPTIDEK", "PEPTIDEK", null);
+        var light = new DocPrecursor(peptide, "PEPTIDEK", 2, 465.2346, "light", null);
+        var heavy = new DocPrecursor(peptide, "PEPTIDEK[+8.014199]", 2, 469.2417, "heavy", null);
+        var spectrum = Ms2(new[] { Y1 }, new[] { 10.0 });
+
+        var both = new FakeLibrary()
+            .Add("PEPTIDEK", 2, new[] { 100.0 }, new[] { 1.0 })
+            .Add("PEPTIDEK[+8.014199]", 2, new[] { 108.0 }, new[] { 1.0 });
+        var a = SpectrumAnnotator.Annotate(spectrum, new[] { light, heavy }, LabelOptions.Default, DocumentSettings.Default, both);
+        Assert.Equal("PEPTIDEK", a.Precursors.Single(x => x.Precursor == light).Library!.ModifiedSequence);
+        Assert.Equal("PEPTIDEK[+8.014199]", a.Precursors.Single(x => x.Precursor == heavy).Library!.ModifiedSequence);
+
+        // With only the light spectrum the heavy precursor has no library match: the light one's fragment
+        // masses are not its.
+        var lightOnly = new FakeLibrary().Add("PEPTIDEK", 2, new[] { 100.0 }, new[] { 1.0 });
+        a = SpectrumAnnotator.Annotate(spectrum, new[] { heavy }, LabelOptions.Default, DocumentSettings.Default, lightOnly);
+        Assert.Null(a.Precursors[0].Library);
+    }
+
+    [Fact]
     public void LibraryModeWithoutAnEntryFallsBackToDocumentTransitions()
     {
         var p = Peptide();

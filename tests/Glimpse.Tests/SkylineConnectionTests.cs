@@ -134,6 +134,41 @@ public sealed class SkylineConnectionTests : IDisposable
     }
 
     [Fact]
+    public void ARequestSkylineNeverAnswersTimesOutAndFreesTheConnection()
+    {
+        using var answer = new ManualResetEventSlim();
+        using var server = new FakeSkylineServer((method, _) =>
+        {
+            if (method == "GetDocumentPath")
+                answer.Wait(TimeSpan.FromSeconds(30));   // Skyline stuck behind a modal dialog
+            return method == "GetVersion" ? "Skyline-daily 26.1" : "test.sky";
+        });
+        var skyline = SkylineConnection.FromArguments(new[] { server.RawName }, TimeSpan.FromSeconds(1))!;
+
+        // A call's own limit, shorter than the connection's two minutes.
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var error = Assert.Throws<TimeoutException>(() => skyline.Call(c => c.GetDocumentPath(), TimeSpan.FromMilliseconds(500)));
+        Assert.InRange(clock.Elapsed.TotalSeconds, 0.4, 4.0);
+        Assert.Equal("Skyline did not answer within 0.5 s.", error.Message);
+        Assert.False(skyline.IsBusy);
+
+        // The connection's limit, for calls that give none (Skyline is still stuck on the first request).
+        skyline.RequestTimeout = TimeSpan.FromMilliseconds(300);
+        error = Assert.Throws<TimeoutException>(() => skyline.GetVersion());
+        Assert.Equal("Skyline did not answer within 0.3 s.", error.Message);
+        Assert.False(skyline.IsBusy);
+
+        // Once Skyline is free again, the next request goes through on the same connection. (First let the
+        // abandoned request's one-second connection attempt run out, so it cannot take the server's pipe.)
+        Thread.Sleep(1500);
+        answer.Set();
+        skyline.RequestTimeout = TimeSpan.FromSeconds(10);
+        Assert.Equal("Skyline-daily 26.1", skyline.GetVersion());
+        Assert.Equal(TimeSpan.FromMinutes(2), SkylineConnection.FromArguments(new[] { "x" }, null, _dir)!.RequestTimeout);
+        Assert.Equal(TimeSpan.FromMinutes(15), SkylineDocumentLoader.ReportTimeout);
+    }
+
+    [Fact]
     public void LoaderExportsBothReportsAndResolvesFilePaths()
     {
         var docPath = Path.Combine(_dir, "doc.sky");

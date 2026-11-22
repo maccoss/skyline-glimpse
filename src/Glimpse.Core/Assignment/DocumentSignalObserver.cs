@@ -58,16 +58,28 @@ public sealed class DocumentSignalObserver : IScanObserver
         _maxColumns = maxColumns;
         _scheme = settings.IsolationScheme;
         var list = new List<FilePrecursor>();
+        // A peptide listed under several proteins is one molecule: measured once, counted once in the
+        // peptides-per-spectrum heatmap, and its XIC shared by every copy. Copies Skyline integrated
+        // differently are kept apart.
+        var byMolecule = new Dictionary<(string, int, string, double, double), FilePrecursor>();
         foreach (var p in document.Precursors)
         {
             if (!p.Peaks.TryGetValue(fileName, out var peak) || !peak.HasBoundaries || !double.IsFinite(p.Mz))
                 continue;
+            var key = (p.ModifiedSequence, p.Charge, p.LabelType, peak.Start, peak.End);
+            if (byMolecule.TryGetValue(key, out var first))
+            {
+                first.Copies.Add(p);
+                continue;
+            }
             var ms1 = p.Transitions.Where(t => t.IsPrecursor).Select(t => t.ProductMz).ToList();
             if (ms1.Count == 0)
                 ms1 = Fragments.PrecursorIsotopes(p.Mz, p.Charge).Select(i => i.Mz).ToList();
             var ms2 = p.Transitions.Where(t => !t.IsPrecursor).Select(t => t.ProductMz).ToList();
-            list.Add(new FilePrecursor(p, peak.Start, peak.End,
-                Windows(ms1, settings.PrecursorTolerance), Windows(ms2, settings.ProductTolerance)));
+            var f = new FilePrecursor(p, peak.Start, peak.End,
+                Windows(ms1, settings.PrecursorTolerance), Windows(ms2, settings.ProductTolerance));
+            byMolecule.Add(key, f);
+            list.Add(f);
         }
         _byMz = list.OrderBy(f => f.Precursor.Mz).ToArray();
         _mz = _byMz.Select(f => f.Precursor.Mz).ToArray();
@@ -218,11 +230,16 @@ public sealed class DocumentSignalObserver : IScanObserver
     {
         var xics = new Dictionary<DocPrecursor, PrecursorXic>();
         foreach (var f in _byMz)
-            xics[f.Precursor] = new PrecursorXic(f.Precursor, f.Ms1Xic.Scans(), f.Ms1Xic.Values(), f.Ms2Xic.Scans(), f.Ms2Xic.Values())
+        {
+            var xic = new PrecursorXic(f.Precursor, f.Ms1Xic.Scans(), f.Ms1Xic.Values(), f.Ms2Xic.Scans(), f.Ms2Xic.Values())
             {
                 Ms1Claims = f.Ms1Claims.Build(),
                 Ms2Claims = f.Ms2Claims.Build(),
             };
+            xics[f.Precursor] = xic;
+            foreach (var copy in f.Copies)
+                xics[copy] = xic with { Precursor = copy };
+        }
 
         Result = new DocumentSignals(
             _fileName, _assigned, _counts, xics,
@@ -268,6 +285,9 @@ public sealed class DocumentSignalObserver : IScanObserver
         }
 
         public DocPrecursor Precursor { get; }
+
+        /// <summary>The same molecule under other proteins, with the same integrated peak.</summary>
+        public List<DocPrecursor> Copies { get; } = new();
 
         public double Start { get; }
 
@@ -322,8 +342,12 @@ public sealed class DocumentSignalObserver : IScanObserver
 /// <summary>Everything the document pass measured for one result file.</summary>
 /// <param name="FileName">The document's name for the file.</param>
 /// <param name="AssignedIntensity">Per spectrum index: signal claimed by document peptides (as recorded).</param>
-/// <param name="PeptideCount">Per spectrum index: precursors inside their integrated peak (and, for MS2, the isolation window).</param>
-/// <param name="Xics">Per precursor with a peak in this file: its summed MS1 and MS2 XICs.</param>
+/// <param name="PeptideCount">
+/// Per spectrum index: precursors inside their integrated peak (and, for MS2, the isolation window), each
+/// molecule once however many proteins list it.
+/// </param>
+/// <param name="Xics">Per precursor with a peak in this file (every copy of a shared peptide): its summed MS1 and MS2 XICs.</param>
+/// <param name="PrecursorsInFile">Distinct precursor molecules with a peak in this file.</param>
 public sealed record DocumentSignals(
     string FileName,
     float[] AssignedIntensity,

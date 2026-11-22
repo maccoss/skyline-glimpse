@@ -7,6 +7,7 @@ using System.IO.Pipes;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
+using System.Threading.Tasks;
 using SkylineTool;
 
 namespace Glimpse.Skyline;
@@ -32,6 +33,13 @@ public sealed class SkylineConnection
     public string PipeName { get; }
 
     public TimeSpan Timeout { get; }
+
+    /// <summary>
+    /// How long a request may wait for Skyline's answer before it fails, unless the call gives its own
+    /// limit. A Skyline that never answers (a modal dialog holding it) must not hold every later request
+    /// behind it.
+    /// </summary>
+    public TimeSpan RequestTimeout { get; internal set; } = TimeSpan.FromMinutes(2);
 
     /// <summary>
     /// The connection named by the tool's first argument (<c>$(SkylineConnection)</c>), or, during
@@ -70,12 +78,15 @@ public sealed class SkylineConnection
     public bool IsBusy => _gate.CurrentCount == 0;
 
     /// <summary>Run a request, after any of this connection's requests already in progress.</summary>
-    public T Call<T>(Func<SkylineJsonToolClient, T> action)
+    /// <param name="action">The request.</param>
+    /// <param name="timeout">How long to wait for the answer; <see cref="RequestTimeout"/> when null.</param>
+    /// <exception cref="TimeoutException">Skyline did not answer in time.</exception>
+    public T Call<T>(Func<SkylineJsonToolClient, T> action, TimeSpan? timeout = null)
     {
         _gate.Wait();
         try
         {
-            return Send(action);
+            return Send(action, timeout ?? RequestTimeout);
         }
         finally
         {
@@ -96,7 +107,7 @@ public sealed class SkylineConnection
         }
         try
         {
-            result = Send(action);
+            result = Send(action, RequestTimeout);
             return true;
         }
         finally
@@ -105,20 +116,39 @@ public sealed class SkylineConnection
         }
     }
 
-    private T Send<T>(Func<SkylineJsonToolClient, T> action)
+    /// <summary>
+    /// One request on a fresh pipe, given up after <paramref name="timeout"/>. The pipe offers no read
+    /// timeout, so the request runs on its own thread: a request Skyline never answers is abandoned (its
+    /// pipe closed) and fails here, and this connection's next request can go ahead.
+    /// </summary>
+    private T Send<T>(Func<SkylineJsonToolClient, T> action, TimeSpan timeout)
     {
-        using var pipe = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut);
-        pipe.Connect((int)Timeout.TotalMilliseconds);
-        pipe.ReadMode = PipeTransmissionMode.Message;
-        return action(new SkylineJsonToolClient(pipe));
+        var pipe = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut);
+        var request = Task.Run(() =>
+        {
+            using (pipe)
+            {
+                pipe.Connect((int)Timeout.TotalMilliseconds);
+                pipe.ReadMode = PipeTransmissionMode.Message;
+                return action(new SkylineJsonToolClient(pipe));
+            }
+        });
+        if (!((IAsyncResult)request).AsyncWaitHandle.WaitOne(timeout))
+        {
+            // Observe the abandoned request's eventual failure, so it is not reported as unhandled.
+            request.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+            pipe.Dispose();
+            throw new TimeoutException($"Skyline did not answer within {timeout.TotalSeconds.ToString("0.#", CultureInfo.InvariantCulture)} s.");
+        }
+        return request.GetAwaiter().GetResult();
     }
 
     /// <summary>Run one call against Skyline on a fresh pipe.</summary>
-    public void Call(Action<SkylineJsonToolClient> action) => Call(c =>
+    public void Call(Action<SkylineJsonToolClient> action, TimeSpan? timeout = null) => Call(c =>
     {
         action(c);
         return 0;
-    });
+    }, timeout);
 
     public string GetVersion() => Call(c => c.GetVersion());
 

@@ -166,16 +166,19 @@ public partial class MainWindow
                 var candidates = CandidatesFor(s);
                 if (forced is not null)
                 {
-                    var extra = forced.Precursors.Where(p => s.Header.MsLevel < 2 || s.Header.IsolationContains(p.Mz)).Except(candidates).ToList();
-                    if (extra.Count > 0)
-                        candidates = candidates.Concat(extra).ToList();
+                    // The picked peptide's own copy first: a peptide listed under several proteins is shown
+                    // as the one picked, and once.
+                    var picked = forced.Precursors.Where(p => s.Header.MsLevel < 2 || s.Header.IsolationContains(p.Mz));
+                    candidates = SpectrumCandidates.DistinctMolecules(picked.Concat(candidates));
                 }
                 return (s, SpectrumAnnotator.Annotate(s, candidates, options, settings, library));
             });
         }
         catch (Exception ex)
         {
-            SpectrumTitle.Text = $"Could not read scan {scan}: {ex.Message}";
+            // A read cut short by a newer click or a different file (its reader closed) is not an error.
+            if (request == _spectrumRequest && ReferenceEquals(run, _run))
+                SpectrumTitle.Text = $"Could not read scan {scan}: {ex.Message}";
             return;
         }
         // A newer click (or a different file) superseded this one while it was being read.

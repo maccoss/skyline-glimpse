@@ -198,9 +198,15 @@ public static class SkylineDocumentLoader
         return null;
     }
 
+    /// <summary>
+    /// How long a report may take. The largest measured, every replicate's peaks of a 69,000 precursor
+    /// document, took 28 s; this leaves room for slower machines and bigger documents.
+    /// </summary>
+    internal static readonly TimeSpan ReportTimeout = TimeSpan.FromMinutes(15);
+
     private static void Export(SkylineConnection skyline, ReportDefinition definition, string path)
     {
-        skyline.Call(c => c.ExportReportFromDefinition(definition, path, "invariant"));
+        skyline.Call(c => c.ExportReportFromDefinition(definition, path, "invariant"), ReportTimeout);
         if (!File.Exists(path))
             throw new IOException($"Skyline did not write the {definition.Name} report.");
     }

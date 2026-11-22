@@ -47,6 +47,17 @@ public sealed class SpectrumCandidates
             if (p.Peaks.TryGetValue(fileName, out var peak) && peak.Contains(scan.RetentionTime, options.ExtendMinutes))
                 result.Add(p);
         }
-        return result;
+        return DistinctMolecules(result);
+    }
+
+    /// <summary>
+    /// The precursors, one per molecule (modified sequence, charge and label), the first of its copies kept.
+    /// A peptide listed under several proteins is one molecule in the spectrum: annotating each copy would
+    /// list it twice and mark every one of its peaks as shared between two peptides.
+    /// </summary>
+    public static List<DocPrecursor> DistinctMolecules(IEnumerable<DocPrecursor> precursors)
+    {
+        var seen = new HashSet<(string, int, string)>();
+        return precursors.Where(p => seen.Add((p.ModifiedSequence, p.Charge, p.LabelType))).ToList();
     }
 }

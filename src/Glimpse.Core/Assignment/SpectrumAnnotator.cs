@@ -178,7 +178,9 @@ public static class SpectrumAnnotator
         PrecursorAnnotation a, int msLevel, LabelOptions options, DocumentSettings settings, ISpectralLibrary? library)
     {
         var precursor = a.Precursor;
-        a.Library = library?.Find(precursor.Peptide.ModifiedSequence, precursor.Charge);
+        // The precursor's own sequence, isotope labels included: BiblioSpec keeps a heavy precursor's
+        // spectrum under its labeled sequence, and the light one has the wrong fragment masses for it.
+        a.Library = library?.Find(precursor.ModifiedSequence, precursor.Charge);
 
         if (msLevel <= 1)
         {
