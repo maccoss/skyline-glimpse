@@ -168,6 +168,7 @@ public class DocumentSignalTests
             .Ms1(1, new[] { 400.0, 450.0 }, new[] { 100.0, 50.0 })
             .Ms2(1.5, 395, 405, new[] { 300.0, 350.0 }, new[] { 40.0, 5.0 })
             .Ms1(2, new[] { 400.0, 450.0 }, new[] { 60.0, 50.0 })
+            .Ms1(2.5, new[] { 450.0 }, new[] { 50.0 })   // on the boundary, nothing at 400: a zero, not a gap
             .Ms1(3, new[] { 400.0, 450.0 }, new[] { 30.0, 50.0 });
         var observer = new DocumentSignalObserver(Docs.Model(p1, p2, p3), "run1.raw", DocumentSettings.Default);
         var index = ScanIndexBuilder.Build(source, false, new IScanObserver[] { observer });
@@ -175,10 +176,11 @@ public class DocumentSignalTests
         var all = new[] { aak.Peptide, cck.Peptide, copy.Peptide };
 
         // Integrated only: the union of claimed peaks. Three precursors claim the 400 peak; it counts once,
-        // the sum stays under the TIC (150, then 110), and the margin scan at 3 min is left out.
+        // the sum stays under the TIC (150, then 110), the scan on the boundary at 2.5 min is a zero, and the
+        // margin scan at 3 min is left out.
         var sum = Assert.Single(XicTraces.Build(index, signals, all, XicMode.Summed, true, IntensityUnits.AsRecorded, integratedOnly: true));
-        Assert.Equal(new[] { 1.0, 2.0 }, sum.Times);
-        Assert.Equal(new[] { 100.0, 60.0 }, sum.Values);
+        Assert.Equal(new[] { 1.0, 2.0, 2.5 }, sum.Times);
+        Assert.Equal(new[] { 100.0, 60.0, 0.0 }, sum.Values);
         Assert.Equal("Sum of 2 peptides", sum.Name);   // AAK and CCK: the copy is the same molecule
         var ms1Tic = index.Headers.Where(h => h.MsLevel == 1).ToDictionary(h => h.RetentionTime, h => h.TotalIonCurrent);
         Assert.All(sum.Times.Select((t, i) => sum.Values[i] <= ms1Tic[t]), Assert.True);
@@ -195,7 +197,7 @@ public class DocumentSignalTests
         var perProtein = XicTraces.Build(index, signals, all, XicMode.PerProtein, true, IntensityUnits.AsRecorded, integratedOnly: true);
         Assert.Equal(new object[] { p1, p2, p3 }, perProtein.Select(t => t.Owner));
         Assert.Equal(new[] { "P1 (1 peptides)", "P2 (1 peptides)", "P3 (1 peptides)" }, perProtein.Select(t => t.Name));
-        Assert.All(perProtein, t => Assert.Equal(new[] { 100.0, 60.0 }, t.Values));
+        Assert.All(perProtein, t => Assert.Equal(new[] { 100.0, 60.0, 0.0 }, t.Values));
 
         // Not limited to the peak: the margins hold no claims, so each distinct precursor is summed once.
         // The copy no longer adds, but AAK's and CCK's overlapping windows still do (100 + 100), out to the
@@ -208,7 +210,7 @@ public class DocumentSignalTests
 
         // Ions: the union is converted per scan (10 ms injections: x 0.01).
         var ions = Assert.Single(XicTraces.Build(index, signals, all, XicMode.Summed, true, IntensityUnits.Ions, integratedOnly: true));
-        Assert.Equal(new[] { 1.0, 0.6 }, ions.Values.Select(v => Math.Round(v, 6)));
+        Assert.Equal(new[] { 1.0, 0.6, 0.0 }, ions.Values.Select(v => Math.Round(v, 6)));
     }
 
     [Fact]
