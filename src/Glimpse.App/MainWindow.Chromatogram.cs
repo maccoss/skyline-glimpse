@@ -28,6 +28,7 @@ public partial class MainWindow
         StylePlot(ChromPlot.Plot, "Retention time (min)", "Intensity");
         PlotClicks.OnClick(ChromPlot, c => OnChromatogramClick(c.X));
         PlotClicks.OnReset(ChromPlot, ResetChromZoom);
+        PlotClicks.KeepFromZero(ChromPlot, ChromPlot.Plot.Axes.Left, ChromPlot.Plot.Axes.Right);
         ChromPlot.MouseMove += OnChromatogramMouseMove;
     }
 

@@ -72,6 +72,23 @@ public static class PlotClicks
     }
 
     /// <summary>
+    /// Keep intensity axes from going below zero: a zoom rectangle dragged to the bottom of the plot, a
+    /// pan or a wheel zoom would otherwise show negative intensities, which no spectrum or chromatogram
+    /// has. Applied just before each render, so it costs no extra redraw.
+    /// </summary>
+    public static void KeepFromZero(WpfPlot plot, params ScottPlot.IYAxis[] axes)
+    {
+        plot.Plot.RenderManager.RenderStarting += (_, _) =>
+        {
+            foreach (var axis in axes)
+            {
+                if (axis.Min < 0 && axis.Max > 0)
+                    plot.Plot.Axes.SetLimitsY(0, axis.Max, axis);
+            }
+        };
+    }
+
+    /// <summary>
     /// Draw at the screen's scale: without this a 200% display shows every font and line at half the size
     /// FigureStyle asks for. Call once the plot is in a window (the scale is the window's).
     /// </summary>

@@ -44,6 +44,7 @@ public partial class MainWindow
         StylePlot(SpectrumPlot.Plot, "m/z", "Intensity");
         SpectrumPlot.MouseMove += OnSpectrumMouseMove;
         PlotClicks.OnReset(SpectrumPlot, ResetSpectrumZoom);
+        PlotClicks.KeepFromZero(SpectrumPlot, SpectrumPlot.Plot.Axes.Left);
         BuildLabelMenus();
     }
 
