@@ -41,20 +41,19 @@ public partial class MainWindow
         HeatmapGrid grid;
         float[,] values;
         string label;
-        var log = HeatLogCheck.IsChecked == true;
+        var log = HeatmapScale.IsLog((HeatmapValue)valueMode, HeatLogCheck.IsChecked == true);
         switch (valueMode)
         {
             case 1 when signals is not null:
                 grid = HeatLevel == 1 ? signals.Ms1Fraction : signals.Ms2Fraction;
                 values = grid.Values;
-                log = false;
                 label = HeatLevel == 1 ? "fraction of binned signal assigned" : "fraction of scan signal assigned";
                 break;
             case 2 when signals is not null:
                 // MS2 only (OnHeatValueChanged): the peptides co-isolated in each window.
                 grid = signals.Ms2Count;
                 values = grid.Values;
-                label = (log ? "log10 " : "") + "peptides per spectrum";
+                label = "peptides per spectrum";
                 break;
             case 1 or 2:
                 plot.Title(_document.Precursors.Count == 0 ? "Needs a Skyline document with results" : "Measuring document signals...");
@@ -114,10 +113,13 @@ public partial class MainWindow
 
     /// <summary>
     /// Peptides per spectrum is an MS2 measure, the peptides co-isolated in each window, so choosing it
-    /// moves the level to MS2 and greys out MS1; any other value makes MS1 available again.
+    /// moves the level to MS2 and greys out MS1; any other value makes MS1 available again. Only intensity
+    /// is drawn on a log scale, so the Log scale box is greyed out for the others.
     /// </summary>
     private void OnHeatValueChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
+        if (HeatLogCheck is not null)
+            HeatLogCheck.IsEnabled = HeatmapScale.OffersLog((HeatmapValue)Math.Max(0, HeatValueCombo.SelectedIndex));
         var peptidesPerSpectrum = HeatValueCombo.SelectedIndex == 2;
         HeatMs1Item.IsEnabled = !peptidesPerSpectrum;
         if (peptidesPerSpectrum && HeatLevelCombo.SelectedIndex != 1)

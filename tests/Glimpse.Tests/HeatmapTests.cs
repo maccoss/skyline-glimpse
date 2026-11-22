@@ -7,6 +7,23 @@ namespace Glimpse.Tests;
 /// <summary>Exact cell values of the intensity heatmaps on a hand-built run.</summary>
 public class HeatmapTests
 {
+    [Fact]
+    public void OnlyIntensityIsDrawnOnALogScale()
+    {
+        Assert.True(HeatmapScale.IsLog(HeatmapValue.Intensity, logRequested: true));
+        Assert.False(HeatmapScale.IsLog(HeatmapValue.Intensity, logRequested: false));
+        // Peptides per spectrum (a few to a few tens) and the assigned fraction (0-1) are always linear.
+        Assert.False(HeatmapScale.IsLog(HeatmapValue.PeptidesPerSpectrum, logRequested: true));
+        Assert.False(HeatmapScale.IsLog(HeatmapValue.AssignedFraction, logRequested: true));
+
+        Assert.True(HeatmapScale.OffersLog(HeatmapValue.Intensity));
+        Assert.False(HeatmapScale.OffersLog(HeatmapValue.AssignedFraction));
+        Assert.False(HeatmapScale.OffersLog(HeatmapValue.PeptidesPerSpectrum));
+
+        // The enum follows the window's Value list: Intensity, Assigned fraction, Peptides per spectrum.
+        Assert.Equal(new[] { 0, 1, 2 }, new[] { (int)HeatmapValue.Intensity, (int)HeatmapValue.AssignedFraction, (int)HeatmapValue.PeptidesPerSpectrum });
+    }
+
     private static SpectrumData Ms1(double rt, double[] mz, double[] intensity, float it) =>
         FakeSource.Spectrum(0, 1, rt, mz, intensity, it, double.NaN, double.NaN);
 
