@@ -96,8 +96,35 @@ public static class PlotClicks
     public static void MatchDisplayScale(WpfPlot plot)
     {
         plot.DisplayScale = plot.DetectDisplayScale();
-        plot.Plot.ScaleFactor = plot.DisplayScale;
+        ApplyScale(plot);
         plot.Refresh();
+    }
+
+    /// <summary>
+    /// Grow text and lines with the plot (FigureStyle.SizeScale): a maximized window on a large screen then
+    /// shows the same figure scaled up. Call once; it follows every resize.
+    /// </summary>
+    /// <remarks>
+    /// SizeChanged comes in the layout pass, before the render the resize causes, so setting the scale there
+    /// is enough: no Refresh of its own, which would draw every resize twice. (RenderStarting is too late:
+    /// ScottPlot has laid the plot out by then, and the new scale would only show on the next render.)
+    /// </remarks>
+    public static void ScaleWithSize(WpfPlot plot) => plot.SizeChanged += (_, _) => ApplyScale(plot);
+
+    /// <summary>
+    /// The size scale applied on top of the display scale (1 for a plot at or below the reference size):
+    /// divide a radius in render units by it to keep the radius the same on screen.
+    /// </summary>
+    public static double SizeScaleOf(WpfPlot plot) => plot.DisplayScale > 0 ? plot.Plot.ScaleFactor / plot.DisplayScale : 1;
+
+    /// <summary>The display scale times the size scale; returns true when it changed.</summary>
+    private static bool ApplyScale(WpfPlot plot)
+    {
+        var scale = plot.DisplayScale * Glimpse.Plotting.FigureStyle.SizeScale(plot.ActualWidth, plot.ActualHeight);
+        if (Math.Abs(scale - plot.Plot.ScaleFactor) < 0.005)
+            return false;
+        plot.Plot.ScaleFactor = scale;
+        return true;
     }
 
     /// <summary>The mouse position in the units plottables draw in (see FigureStyle.ToRenderPixel).</summary>

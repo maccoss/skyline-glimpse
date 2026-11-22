@@ -201,6 +201,17 @@ public class FigureStyleTests
         Assert.Equal(1f, FigureStyle.XicWidth(201));
         Assert.Equal(2f, FigureStyle.TraceWidth);
 
+        // Text and lines grow with the plot's area, from 1000 x 400 up, at most 2.5 times.
+        Assert.Equal(1.0, FigureStyle.SizeScale(1000, 400));
+        Assert.Equal(1.0, FigureStyle.SizeScale(700, 330));           // smaller: never shrinks
+        Assert.Equal(2.0, FigureStyle.SizeScale(2000, 800), 9);       // twice as wide and tall
+        Assert.Equal(1.5, FigureStyle.SizeScale(2250, 400), 9);       // only wider: by the area
+        Assert.Equal(1.5, FigureStyle.SizeScale(1000, 900), 9);       // only taller: likewise
+        Assert.Equal(2.5, FigureStyle.SizeScale(4000, 1600));         // capped
+        Assert.Equal(1.0, FigureStyle.SizeScale(0, 400));             // not laid out yet
+        Assert.Equal(1.0, FigureStyle.SizeScale(1000, double.NaN));
+        Assert.Equal(1.0, FigureStyle.SizeScale(double.PositiveInfinity, 400));
+
         var sticks = new StickPlottable(new[] { 100.0 }, new[] { 1.0 });
         Assert.Equal(1.5f, sticks.StickWidth);
         Assert.Equal(2.5f, sticks.HighlightWidth);

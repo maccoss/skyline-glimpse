@@ -49,7 +49,10 @@ public partial class MainWindow : Window
     {
         App.WriteLog("MainWindow loaded");
         foreach (var plot in new[] { ChromPlot, HeatPlot, SpectrumPlot })
+        {
             PlotClicks.MatchDisplayScale(plot);
+            PlotClicks.ScaleWithSize(plot);
+        }
         DpiChanged += (_, _) =>
         {
             foreach (var plot in new[] { ChromPlot, HeatPlot, SpectrumPlot })
