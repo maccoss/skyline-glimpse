@@ -84,6 +84,7 @@
                     <TreeView.Resources>
                         <!-- Rows in the multi-selection (see MainWindow.TreeSelection.cs). -->
                         <Style TargetType="TreeViewItem">
+                            <EventSetter Event="RequestBringIntoView" Handler="OnTreeItemRequestBringIntoView" />
                             <Setter Property="Background">
                                 <Setter.Value>
                                     <MultiBinding Converter="{StaticResource TreeSelectionBrush}">

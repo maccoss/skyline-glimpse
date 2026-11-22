@@ -149,6 +149,7 @@ public class FastLoadTests : IDisposable
         var b = Docs.Precursor(p1, "CCK", 2, 310, "f.raw", 1, 2);
         var c = Docs.Precursor(p2, "DDK", 2, 320, "f.raw", 1, 2);
         var d = Docs.Precursor(p2, "EEK", 3, 330, "f.raw", 1, 2);
+        var d4 = Docs.Precursor(p2, "EEK", 4, 248, "f.raw", 1, 2);   // a second charge state of EEK
         var model = new DocumentModel(null, new[] { p1, p2 }, Array.Empty<ResultFileInfo>());
 
         // Several proteins: all their peptides.
@@ -157,6 +158,8 @@ public class FastLoadTests : IDisposable
         Assert.Equal(new[] { a.Peptide, d.Peptide }, model.PeptidesOf(new HashSet<object> { d.Peptide, a.Peptide }));
         // A precursor selects its peptide; a protein and one of its own peptides give that peptide once.
         Assert.Equal(new[] { a.Peptide, b.Peptide, c.Peptide }, model.PeptidesOf(new HashSet<object> { p1, a.Peptide, c }));
+        // One of a peptide's two precursors is enough to select it.
+        Assert.Equal(new[] { d.Peptide }, model.PeptidesOf(new HashSet<object> { d4 }));
         Assert.Empty(model.PeptidesOf(new HashSet<object>()));
     }
 

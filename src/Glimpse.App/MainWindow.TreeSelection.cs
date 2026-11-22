@@ -45,6 +45,36 @@ public partial class MainWindow
         }));
     }
 
+    private bool _bringingRowIntoView;
+
+    /// <summary>
+    /// Scroll a row into view vertically only. WPF brings the whole row into view when it is selected or
+    /// focused, which for a protein name wider than the panel scrolls the tree sideways and hides the
+    /// start of every name. The row is brought in from its left edge, header only, instead; the
+    /// horizontal scrollbar still moves the tree when dragged.
+    /// </summary>
+    private void OnTreeItemRequestBringIntoView(object sender, RequestBringIntoViewEventArgs e)
+    {
+        if (_bringingRowIntoView || sender is not TreeViewItem row || !ReferenceEquals(e.TargetObject, row))
+            return;
+        e.Handled = true;
+        var header = row.Template?.FindName("PART_Header", row) as FrameworkElement;
+        var height = header?.ActualHeight > 0 ? header.ActualHeight : Math.Min(row.ActualHeight, 20);
+        // The left edge of what is showing now, in the row's coordinates: horizontally already in view, so
+        // the scroll position stays wherever it is (the left, unless the user dragged the scrollbar).
+        var viewer = FindAncestor<ScrollViewer>(row);
+        var left = viewer is null ? 0 : viewer.TranslatePoint(new Point(0, 0), row).X;
+        _bringingRowIntoView = true;
+        try
+        {
+            row.BringIntoView(new Rect(left, 0, 1, height));
+        }
+        finally
+        {
+            _bringingRowIntoView = false;
+        }
+    }
+
     /// <summary>The row the TreeView itself has selected (it draws its own highlight on it).</summary>
     private TreeViewItem? _nativeSelected;
 
@@ -261,6 +291,16 @@ public partial class MainWindow
             return null;
         row.BringIntoView();
         return row;
+    }
+
+    private static T? FindAncestor<T>(DependencyObject child) where T : DependencyObject
+    {
+        for (var d = VisualTreeHelper.GetParent(child); d is not null; d = VisualTreeHelper.GetParent(d))
+        {
+            if (d is T match)
+                return match;
+        }
+        return null;
     }
 
     private static T? FindChild<T>(DependencyObject parent) where T : DependencyObject
