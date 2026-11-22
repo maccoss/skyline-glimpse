@@ -72,9 +72,10 @@ public static class PlotClicks
     }
 
     /// <summary>
-    /// Keep intensity axes from going below zero: a zoom rectangle dragged to the bottom of the plot, a
-    /// pan or a wheel zoom would otherwise show negative intensities, which no spectrum or chromatogram
-    /// has. Applied just before each render, so it costs no extra redraw.
+    /// Pin intensity axes at zero: whatever a zoom rectangle, a pan or the wheel does, the bottom of the
+    /// axis stays at 0 and only its top moves. The wheel zooms about the mouse, so zooming in would
+    /// otherwise lift the bottom off zero, and a rectangle dragged past the plot would take it negative.
+    /// Applied just before each render, so it costs no extra redraw.
     /// </summary>
     public static void KeepFromZero(WpfPlot plot, params ScottPlot.IYAxis[] axes)
     {
@@ -82,7 +83,7 @@ public static class PlotClicks
         {
             foreach (var axis in axes)
             {
-                if (axis.Min < 0 && axis.Max > 0)
+                if (axis.Min != 0 && axis.Max > 0)
                     plot.Plot.Axes.SetLimitsY(0, axis.Max, axis);
             }
         };
