@@ -21,6 +21,8 @@ public sealed partial class PwizMsDataSource : IMsDataSource
     private readonly MSData _msd;
     private readonly ISpectrumList _spectra;
     private readonly IVendorCentroidingSpectrumList? _centroider;
+    // The configuration a scan without its own reference was recorded with (mzML lets scans inherit the run's).
+    private readonly InstrumentConfiguration? _defaultConfiguration;
 
     // Reused for out-of-order m/z arrays, which some vendor readers deliver.
     private static readonly IntegerSet AllLevels = new(1, int.MaxValue);
@@ -33,6 +35,7 @@ public sealed partial class PwizMsDataSource : IMsDataSource
         _msd = msd;
         _spectra = msd.Run.SpectrumList ?? throw new InvalidDataException($"No spectra in {Path.GetFileName(path)}.");
         _centroider = _spectra as IVendorCentroidingSpectrumList;
+        _defaultConfiguration = DefaultConfiguration(msd);
         Run = ReadRunInfo(path, msd);
     }
 
@@ -104,7 +107,7 @@ public sealed partial class PwizMsDataSource : IMsDataSource
         }
 
         var (mz, intensity) = PeakArrays(s);
-        var header = ReadHeader(index, s, mz, intensity);
+        var header = ReadHeader(index, s, mz, intensity, _defaultConfiguration);
         return new SpectrumData(header, mz, intensity, ReadDetails(s));
     }
 
@@ -132,7 +135,7 @@ public sealed partial class PwizMsDataSource : IMsDataSource
         return (mz, intensity);
     }
 
-    private static ScanHeader ReadHeader(int index, Spectrum s, double[] mz, double[] intensity)
+    private static ScanHeader ReadHeader(int index, Spectrum s, double[] mz, double[] intensity, InstrumentConfiguration? defaultConfiguration)
     {
         var level = s.Params.CvParamValueOrDefault(CVID.MS_ms_level, 0);
         var scan = s.ScanList.Scans.Count > 0 ? s.ScanList.Scans[0] : null;
@@ -174,8 +177,14 @@ public sealed partial class PwizMsDataSource : IMsDataSource
         return new ScanHeader(
             index, (byte)Math.Clamp(level, 0, 255), rt, (float)injectionMs,
             target, lower, upper, tic, bpMz, (float)bpI, mz.Length, polarity,
-            s.HasCVParam(CVID.MS_centroid_spectrum), AnalyzerOf(scan?.InstrumentConfiguration));
+            s.HasCVParam(CVID.MS_centroid_spectrum), AnalyzerOf(scan?.InstrumentConfiguration ?? defaultConfiguration));
     }
+
+    /// <summary>
+    /// The configuration for scans that name none: the run's default, else the file's only configuration.
+    /// </summary>
+    internal static InstrumentConfiguration? DefaultConfiguration(MSData msd) =>
+        msd.Run.DefaultInstrumentConfiguration ?? (msd.InstrumentConfigurations.Count == 1 ? msd.InstrumentConfigurations[0] : null);
 
     /// <summary>
     /// The analyzer that measured a scan's ions: the last analyzer of its instrument configuration (a

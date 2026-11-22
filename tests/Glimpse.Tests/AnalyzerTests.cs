@@ -37,6 +37,63 @@ public class AnalyzerTests
         Assert.Equal(MassAnalyzer.Unknown, PwizMsDataSource.AnalyzerOf(null));
     }
 
+    [Fact]
+    public void AScanWithoutAConfigurationUsesTheRunsDefault()
+    {
+        var orbitrap = Configuration((CVID.MS_orbitrap, 2));
+        var astral = Configuration((CVID.MS_Astral, 2));
+        using var msd = new global::Pwiz.Data.MsData.MSData();
+        Assert.Null(PwizMsDataSource.DefaultConfiguration(msd));                 // no configuration at all
+        msd.InstrumentConfigurations.Add(orbitrap);
+        Assert.Same(orbitrap, PwizMsDataSource.DefaultConfiguration(msd));       // the only one
+        msd.InstrumentConfigurations.Add(astral);
+        Assert.Null(PwizMsDataSource.DefaultConfiguration(msd));                 // two, and no default: unknown
+        msd.Run.DefaultInstrumentConfiguration = astral;
+        Assert.Same(astral, PwizMsDataSource.DefaultConfiguration(msd));         // the run's default wins
+        msd.InstrumentConfigurations.RemoveAt(1);                                 // the Astral one: left with the Orbitrap only
+        Assert.Same(astral, PwizMsDataSource.DefaultConfiguration(msd));         // even over a file's only one
+    }
+
+    [Fact]
+    public void AnMzxmlScanGetsTheFilesOnlyAnalyzer()
+    {
+        // mzXML describes the instrument once; pwiz attaches it to no scan, so the scan falls back to it.
+        const string mzxml = """
+            <?xml version="1.0" encoding="ISO-8859-1"?>
+            <mzXML xmlns="http://sashimi.sourceforge.net/schema_revision/mzXML_3.2">
+              <msRun scanCount="1" startTime="PT90S" endTime="PT90S">
+                <parentFile fileName="file://C:/run.raw" fileType="RAWData" fileSha1="0000000000000000000000000000000000000000"/>
+                <msInstrument msInstrumentID="1">
+                  <msManufacturer category="msManufacturer" value="Thermo Scientific"/>
+                  <msModel category="msModel" value="Orbitrap Exploris 480"/>
+                  <msIonisation category="msIonisation" value="nanoelectrospray"/>
+                  <msMassAnalyzer category="msMassAnalyzer" value="orbitrap"/>
+                  <msDetector category="msDetector" value="inductive detector"/>
+                </msInstrument>
+                <dataProcessing centroided="1"><software type="conversion" name="test" version="1"/></dataProcessing>
+                <scan num="1" scanType="Full" centroided="1" msLevel="1" peaksCount="1" polarity="+" retentionTime="PT90S"
+                      lowMz="100" highMz="100" basePeakMz="100" basePeakIntensity="10" totIonCurrent="10">
+                  <peaks compressionType="none" compressedLen="0" precision="64" byteOrder="network" contentType="m/z-int">QFkAAAAAAABAJAAAAAAAAA==</peaks>
+                </scan>
+              </msRun>
+            </mzXML>
+            """;
+        var dir = Directory.CreateTempSubdirectory("glimpse-mzxml");
+        try
+        {
+            var path = Path.Combine(dir.FullName, "run.mzXML");
+            File.WriteAllText(path, mzxml);
+            using var source = PwizMsDataSource.Open(path);
+            var spectrum = source.ReadSpectrum(0, centroid: false);
+            Assert.Equal(new[] { 100.0 }, spectrum.Mz);
+            Assert.Equal(MassAnalyzer.Orbitrap, spectrum.Header.Analyzer);
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
+    }
+
     [Theory]
     [InlineData(CVID.MS_orbitrap, MassAnalyzer.Orbitrap)]
     [InlineData(CVID.MS_Astral, MassAnalyzer.Astral)]

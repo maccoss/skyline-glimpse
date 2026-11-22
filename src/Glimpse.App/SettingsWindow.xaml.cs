@@ -107,6 +107,12 @@ public partial class SettingsWindow : Window
             }
             entries.Add(new AlphaEntry(row.Instrument.Trim(), row.Analyzer, alpha));
         }
+        // Only the first row of an instrument and analyzer would count, so a second is refused, not ignored.
+        if (IonCalibrationTable.FirstDuplicate(entries) is { } twice)
+        {
+            Refuse($"\"{twice.Instrument}\" has two {twice.Analyzer} rows. Keep one α per instrument and analyzer.", null);
+            return;
+        }
 
         Result = new GlimpseSettings { Figures = figures, IonCalibration = entries }.Validated();
         DialogResult = true;

@@ -65,9 +65,30 @@ public sealed class SettingsTests : IDisposable
     [Fact]
     public void AMissingOrUnreadableFileGivesTheDefaults()
     {
-        Assert.Same(GlimpseSettings.Default, GlimpseSettings.Load(File("none.json")));
+        var problems = new List<string>();
+        Assert.Same(GlimpseSettings.Default, GlimpseSettings.Load(File("none.json"), problems.Add));
+        Assert.Empty(problems);                                        // no file is no problem
         System.IO.File.WriteAllText(File("bad.json"), "{ not json");
-        Assert.Same(GlimpseSettings.Default, GlimpseSettings.Load(File("bad.json")));
+        Assert.Same(GlimpseSettings.Default, GlimpseSettings.Load(File("bad.json"), problems.Add));
+        // Said why, and kept a copy so a later save cannot lose the user's table.
+        var problem = Assert.Single(problems);
+        Assert.StartsWith("Could not read bad.json (", problem);
+        Assert.EndsWith("), so Glimpse uses the default settings. The file was kept as bad.json.unreadable.", problem);
+        Assert.Equal("{ not json", System.IO.File.ReadAllText(File("bad.json.unreadable")));
+        Assert.Equal(File("bad.json.unreadable"), GlimpseSettings.UnreadablePath(File("bad.json")));
+        // An analyzer name Glimpse does not know makes the file unreadable too.
+        System.IO.File.WriteAllText(File("tof.json"), """{ "IonCalibration": [ { "Instrument": "X", "Analyzer": "TOF", "Alpha": 1 } ] }""");
+        Assert.Same(GlimpseSettings.Default, GlimpseSettings.Load(File("tof.json"), problems.Add));
+        Assert.Equal(2, problems.Count);
+        // Read again (Glimpse started again): the earlier copy is replaced, still kept.
+        GlimpseSettings.Load(File("tof.json"), problems.Add);
+        Assert.EndsWith("The file was kept as tof.json.unreadable.", problems[^1]);
+        // No copy possible (a folder in its place): said without claiming one.
+        System.IO.File.WriteAllText(File("stuck.json"), "{ not json");
+        Directory.CreateDirectory(File("stuck.json.unreadable"));
+        GlimpseSettings.Load(File("stuck.json"), problems.Add);
+        Assert.EndsWith("), so Glimpse uses the default settings.", problems[^1]);
+        Assert.Same(GlimpseSettings.Default, GlimpseSettings.Load(File("tof.json")));   // nobody to tell: still the defaults
         System.IO.File.WriteAllText(File("null.json"), "null");
         Assert.Same(GlimpseSettings.Default, GlimpseSettings.Load(File("null.json")));
         Assert.Equal("{ not json", System.IO.File.ReadAllText(File("bad.json")));   // left alone

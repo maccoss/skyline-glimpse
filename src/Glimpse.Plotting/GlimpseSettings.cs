@@ -99,9 +99,10 @@ public sealed record GlimpseSettings
 
     /// <summary>
     /// The settings saved at <paramref name="path"/>, brought into range; the defaults when there is no
-    /// file or it cannot be read. An unreadable file is left alone, not overwritten, until settings are saved.
+    /// file or it cannot be read. An unreadable file is copied to <c>settings.json.unreadable</c>, so the next
+    /// save does not lose it, and <paramref name="onProblem"/> hears why.
     /// </summary>
-    public static GlimpseSettings Load(string path)
+    public static GlimpseSettings Load(string path, Action<string>? onProblem = null)
     {
         try
         {
@@ -112,9 +113,23 @@ public sealed record GlimpseSettings
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or NotSupportedException)
         {
+            var kept = UnreadablePath(path);
+            try
+            {
+                File.Copy(path, kept, overwrite: true);
+            }
+            catch (Exception copy) when (copy is IOException or UnauthorizedAccessException)
+            {
+                kept = null;
+            }
+            onProblem?.Invoke($"Could not read {Path.GetFileName(path)} ({ex.Message}), so Glimpse uses the default settings."
+                + (kept is null ? "" : $" The file was kept as {Path.GetFileName(kept)}."));
             return Default;
         }
     }
+
+    /// <summary>Where <see cref="Load"/> keeps a copy of a settings file it could not read.</summary>
+    public static string UnreadablePath(string path) => path + ".unreadable";
 
     /// <summary>Write the settings to <paramref name="path"/> (via a temporary file, so a crash never leaves half a file).</summary>
     public void Save(string path)

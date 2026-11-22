@@ -205,8 +205,8 @@ public partial class MainWindow
         plot.Clear();
         var h = s.Header;
         var ions = Units == IntensityUnits.Ions && h.HasInjectionTime;
-        var divisor = Calibration.Divisor(h.Analyzer);
-        var values = ions ? s.Intensity.Select(v => v * h.InjectionTimeMs / 1000.0 / divisor).ToArray() : s.Intensity;
+        var calibration = Calibration;
+        var values = ions ? s.Intensity.Select(v => IntensityConversion.Convert(v, h, IntensityUnits.Ions, calibration)).ToArray() : s.Intensity;
         _sticks = new StickPlottable(s.Mz, values);
         if (_annotation is { } a && a.Precursors.Count > 0)
         {
@@ -433,7 +433,7 @@ public partial class MainWindow
             Add(stats, "m/z range", $"{s.Mz[0]:0.0000} - {s.Mz[^1]:0.0000}");
         Add(stats, "TIC", $"{h.TotalIonCurrent:0.###E0}");
         if (h.HasInjectionTime)
-            Add(stats, "TIC (ions)", $"{IntensityConversion.Convert(h.TotalIonCurrent, h, IntensityUnits.Ions, Calibration):0.###E0}");
+            Add(stats, "TIC (ions)", IntensityConversion.Convert(h.TotalIonCurrent, h, IntensityUnits.Ions, Calibration).ToString("0.###E0", Inv));
         if (!double.IsNaN(h.BasePeakMz))
             Add(stats, "Base peak", $"{h.BasePeakMz:0.0000} ({h.BasePeakIntensity:0.###E0})");
         if (_annotation is { } a)
@@ -441,8 +441,8 @@ public partial class MainWindow
             Add(stats, "Document peptides", a.Precursors.Count.ToString("N0", Inv));
             Add(stats, "Signal assigned", $"{a.AssignedFraction:P1} ({a.AssignedPeaks:N0} of {h.PeakCount:N0} peaks)");
             if (h.HasInjectionTime)
-                Add(stats, "Ions assigned", $"{IntensityConversion.Convert(a.AssignedIntensity, h, IntensityUnits.Ions, Calibration):0.###E0} of "
-                    + $"{IntensityConversion.Convert(a.TotalIntensity, h, IntensityUnits.Ions, Calibration):0.###E0}");
+                Add(stats, "Ions assigned", IntensityConversion.Convert(a.AssignedIntensity, h, IntensityUnits.Ions, Calibration).ToString("0.###E0", Inv)
+                    + " of " + IntensityConversion.Convert(a.TotalIntensity, h, IntensityUnits.Ions, Calibration).ToString("0.###E0", Inv));
         }
 
         foreach (var (name, value) in d.Other)

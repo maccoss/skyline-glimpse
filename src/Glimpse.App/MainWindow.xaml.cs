@@ -31,10 +31,18 @@ public partial class MainWindow : Window
     private string? _openingPath;
 
     /// <summary>The user's settings: figure sizes and the ion calibration table.</summary>
-    private GlimpseSettings _glimpseSettings = GlimpseSettings.Load(GlimpseSettings.DefaultPath);
+    private GlimpseSettings _glimpseSettings;
+
+    /// <summary>Why the saved settings could not be read, shown once the window is up; null when they were.</summary>
+    private string? _settingsProblem;
 
     public MainWindow()
     {
+        _glimpseSettings = GlimpseSettings.Load(GlimpseSettings.DefaultPath, problem =>
+        {
+            App.WriteLog(problem);
+            _settingsProblem = problem;
+        });
         FigureStyle.Current = _glimpseSettings.Figures;
         InitializeComponent();
         Title = App.ProductTitle;
@@ -94,6 +102,8 @@ public partial class MainWindow : Window
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         App.WriteLog("MainWindow loaded");
+        if (_settingsProblem is not null)
+            MessageBox.Show(this, _settingsProblem, "Glimpse settings", MessageBoxButton.OK, MessageBoxImage.Warning);
         foreach (var plot in new[] { ChromPlot, HeatPlot, SpectrumPlot })
         {
             PlotClicks.MatchDisplayScale(plot);

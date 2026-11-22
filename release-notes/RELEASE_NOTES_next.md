@@ -16,7 +16,8 @@ One-sentence summary of the release (written at release time).
 - Ions are calibrated: with Units set to Ions, each scan's intensity x injection time is divided by the α of
   the analyzer that recorded it (Hsu et al., J. Proteome Res. 2025, Table 1), so ion counts compare across
   instruments. The Orbitrap Astral (Zoom), Exploris 480, Ascend, Fusion Lumos and Stellar have published
-  values; other instruments, and files whose instrument model is unknown, use α 1. The Properties panel shows each scan's analyzer and α.
+  values; other instruments, and files whose instrument model is unknown, use α 1. The heatmap divides each analyzer's scans by its own α, also where one level mixes
+  analyzers. The Properties panel shows each scan's analyzer and α.
 - A Settings window (toolbar *Settings...*) sets font sizes, axis frame and tick sizes, and line widths for
   every plot, and edits the ion calibration table. Settings are saved for the next session.
 - Plot text and lines grow with the plot: a maximized window, or a large screen at 100% scaling, shows the

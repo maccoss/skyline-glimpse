@@ -73,6 +73,21 @@ public class IonCalibrationTests
     }
 
     [Fact]
+    public void ASecondRowForAnInstrumentAndAnalyzerIsADuplicate()
+    {
+        Assert.Null(IonCalibrationTable.FirstDuplicate(IonCalibrationTable.Published));   // Astral and Orbitrap rows differ
+        var table = new[]
+        {
+            new AlphaEntry("Orbitrap Astral", MassAnalyzer.Astral, 1.53),
+            new AlphaEntry("Orbitrap Astral", MassAnalyzer.Orbitrap, 10.62),
+            new AlphaEntry(" orbitrap astral ", MassAnalyzer.Astral, 1.40),   // the same instrument, as For matches it
+            new AlphaEntry("Orbitrap Astral", MassAnalyzer.Astral, 1.45),
+        };
+        Assert.Same(table[2], IonCalibrationTable.FirstDuplicate(table));
+        Assert.Equal(1.53, IonCalibration.For("Orbitrap Astral", table).Astral);       // why it matters: the first wins
+    }
+
+    [Fact]
     public void OnlyAPositiveAlphaCalibrates()
     {
         var c = new IonCalibration(0, -1, 2.3456);
@@ -127,6 +142,68 @@ public class IonCalibrationTests
         var ms2 = new XicRequest(index, observer.Result!, peptides, XicMode.Summed, false, IntensityUnits.Ions, false, calibration).Build();
         Assert.Equal(new[] { 1.0 }, Assert.Single(ms1).Values);     // 1000 x 10 / 1000 / 10
         Assert.Equal(new[] { 2.5 }, Assert.Single(ms2).Values);     // 500 x 10 / 1000 / 2
+    }
+
+    [Fact]
+    public void TheIonHeatmapDividesEachAnalyzersScansByItsAlpha()
+    {
+        // Column 0: an Orbitrap and an ion trap full scan, and an Orbitrap and an ion trap MS2 scan in the same
+        // window. Column 4: one Orbitrap full scan. All 10 ms, so ions are intensity / 100.
+        var heatmap = new Glimpse.Core.Heatmaps.IntensityHeatmapAccumulator();
+        var source = new FakeSource()
+            .Ms1(1.00, new[] { 500.5 }, new[] { 1000.0 }, 10f, MassAnalyzer.Orbitrap)
+            .Ms2(1.05, 400, 401, new[] { 300.0 }, new[] { 500.0 }, 10f, MassAnalyzer.Orbitrap)
+            .Ms2(1.08, 400, 401, new[] { 300.0 }, new[] { 100.0 }, 10f, MassAnalyzer.IonTrap)
+            .Ms1(1.10, new[] { 500.5 }, new[] { 200.0 }, 10f, MassAnalyzer.IonTrap)
+            .Ms1(3.00, new[] { 500.5 }, new[] { 1000.0 }, 10f, MassAnalyzer.Orbitrap);
+        ScanIndexBuilder.Build(source, false, new IScanObserver[] { heatmap });
+        var ms1 = heatmap.Result!.Ms1;
+        var ms2 = heatmap.Result.Ms2;
+        var calibration = new IonCalibration(10, double.NaN, 2);
+
+        // Uncalibrated: the mean of 10 and 2 ions; each analyzer's share of that mean.
+        Assert.Equal(6f, ms1.Ions[0, 0], 5);
+        Assert.Equal(new[] { MassAnalyzer.Orbitrap, MassAnalyzer.IonTrap }, ms1.IonsByAnalyzer.Keys.Order());
+        Assert.Equal(5f, ms1.IonsByAnalyzer[MassAnalyzer.Orbitrap][0, 0], 5);
+        Assert.Equal(1f, ms1.IonsByAnalyzer[MassAnalyzer.IonTrap][0, 0], 5);
+        Assert.Equal(0f, ms1.IonsByAnalyzer[MassAnalyzer.IonTrap][0, 4]);   // a column without ion trap scans
+
+        // Calibrated: (10 / 10 + 2 / 2) / 2 = 1, and 10 / 10 where only the Orbitrap recorded.
+        var calibrated = ms1.For(IntensityUnits.Ions, calibration);
+        Assert.Equal(1f, calibrated[0, 0], 5);
+        Assert.Equal(1f, calibrated[0, 4], 5);
+        Assert.Equal(0.5f, ms2.For(IntensityUnits.Ions, calibration)[0, 0], 5);   // (5 / 10 + 1 / 2) / 2
+        // The same calibration gives the same array back (the saturation level is cached on it); a new one a new grid.
+        Assert.Same(calibrated, ms1.For(IntensityUnits.Ions, new IonCalibration(10, double.NaN, 2)));
+        Assert.Equal(1.5f, ms1.For(IntensityUnits.Ions, new IonCalibration(10, double.NaN, 1))[0, 0], 5);
+        // No α for any of its analyzers, or not ions: the grid as it is.
+        Assert.Same(ms1.Ions, ms1.For(IntensityUnits.Ions, null));
+        Assert.Same(ms1.Ions, ms1.For(IntensityUnits.Ions, IonCalibration.Uncalibrated));
+        Assert.Same(ms1.Ions, ms1.For(IntensityUnits.Ions, new IonCalibration(double.NaN, 1.5, double.NaN)));
+        Assert.Same(ms1.Values, ms1.For(IntensityUnits.AsRecorded, calibration));
+
+        // A copy with other shares does not reuse the original's calibrated grid.
+        var copy = ms1 with { IonsByAnalyzer = new Dictionary<MassAnalyzer, float[,]> { [MassAnalyzer.Orbitrap] = ms1.Ions } };
+        Assert.Equal(0.6f, copy.For(IntensityUnits.Ions, calibration)[0, 0], 5);   // 6 / 10
+    }
+
+    [Fact]
+    public void AOneAnalyzerHeatmapKeepsOneIonGrid()
+    {
+        var heatmap = new Glimpse.Core.Heatmaps.IntensityHeatmapAccumulator();
+        var source = new FakeSource()
+            .Ms1(1.0, new[] { 500.5 }, new[] { 1000.0 }, 10f, MassAnalyzer.Astral)
+            .Ms1(2.0, new[] { 500.5 }, new[] { 1000.0 }, 10f, MassAnalyzer.Astral);
+        ScanIndexBuilder.Build(source, false, new IScanObserver[] { heatmap });
+        var ms1 = heatmap.Result!.Ms1;
+        Assert.Same(ms1.Ions, Assert.Single(ms1.IonsByAnalyzer).Value);   // no second copy of the grid
+        Assert.Equal(5f, ms1.For(IntensityUnits.Ions, new IonCalibration(double.NaN, 2, double.NaN))[0, 0], 5);
+        // Nothing recorded with an injection time: no ion shares, and NaN ions.
+        var none = new Glimpse.Core.Heatmaps.IntensityHeatmapAccumulator();
+        ScanIndexBuilder.Build(new FakeSource().Ms1(1.0, new[] { 500.5 }, new[] { 1.0 }, float.NaN), false, new IScanObserver[] { none });
+        Assert.Empty(none.Result!.Ms1.IonsByAnalyzer);
+        Assert.True(float.IsNaN(none.Result.Ms1.Ions[0, 0]));
+        Assert.Equal(1f, none.Result.Ms1.Values[0, 0]);
     }
 
     [Fact]

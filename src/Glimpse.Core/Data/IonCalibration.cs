@@ -90,6 +90,21 @@ public sealed record IonCalibration(double Orbitrap, double Astral, double IonTr
 public static class IonCalibrationTable
 {
     /// <summary>
+    /// The first row whose instrument (matched as <see cref="IonCalibration.For"/> matches it) and analyzer an
+    /// earlier row already has, or null. <see cref="IonCalibration.For"/> would use only the earlier one.
+    /// </summary>
+    public static AlphaEntry? FirstDuplicate(IEnumerable<AlphaEntry> table)
+    {
+        var seen = new HashSet<(string, MassAnalyzer)>();
+        foreach (var e in table)
+        {
+            if (!seen.Add((e.Instrument.Trim().ToUpperInvariant(), e.Analyzer)))
+                return e;
+        }
+        return null;
+    }
+
+    /// <summary>
     /// Table 1, with the instrument names the data files use. The paper's Astral Zoom was a prototype that
     /// is, in effect, the commercial Orbitrap Astral Zoom; its "Orbitrap Fusion" is the Fusion Lumos Tribrid.
     /// </summary>
