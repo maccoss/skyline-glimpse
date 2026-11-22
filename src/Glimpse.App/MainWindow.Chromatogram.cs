@@ -308,6 +308,9 @@ public partial class MainWindow
             SelectScan(scan, filter);
     }
 
+    /// <summary>How close, in render units at the reference plot size, the mouse must be to pick an XIC trace.</summary>
+    private const double HoverRadius = 8;
+
     private void OnChromatogramMouseMove(object sender, MouseEventArgs e)
     {
         if (_xicPlottable is null)
@@ -315,7 +318,8 @@ public partial class MainWindow
             ChromHoverText.Text = "";
             return;
         }
-        var nearest = _xicPlottable.Nearest(PlotClicks.ToRenderPixel(ChromPlot, e));
+        // The same hover radius on screen however much the plot's text and lines have grown.
+        var nearest = _xicPlottable.Nearest(PlotClicks.ToRenderPixel(ChromPlot, e), HoverRadius / PlotClicks.SizeScaleOf(ChromPlot));
         if (!ReferenceEquals(nearest, _xicPlottable.Highlighted))
         {
             _xicPlottable.Highlighted = nearest;
