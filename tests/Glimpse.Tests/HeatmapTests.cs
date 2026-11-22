@@ -13,9 +13,9 @@ public class HeatmapTests
         // Ten cells with signal, 10 to 100, among empty (0), missing (NaN) and negative cells.
         var grid = new float[,]
         {
-            { 0, 10, 20, 30, float.NaN },
-            { 40, 50, 60, -5, 0 },
-            { 70, 80, 90, 100, float.PositiveInfinity },
+            { 0, 90, 20, 100, float.NaN },
+            { 40, 10, 70, -5, 0 },
+            { 30, 80, 60, 50, float.PositiveInfinity },
         };
         Assert.Equal(90, HeatmapScale.Quantile(grid, 0.90));    // nearest rank: the 9th of 10
         Assert.Equal(100, HeatmapScale.Quantile(grid, 0.95));   // rounds up to the 10th
