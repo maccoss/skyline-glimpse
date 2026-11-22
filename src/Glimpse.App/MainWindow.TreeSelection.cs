@@ -53,9 +53,15 @@ public partial class MainWindow
     /// start of every name. The row is brought in from its left edge, header only, instead; the
     /// horizontal scrollbar still moves the tree when dragged.
     /// </summary>
+    /// <remarks>
+    /// TreeViewItem's own class handler answers the row's request by asking for its header element
+    /// instead, so the request that actually scrolls comes from inside the row (TargetObject is the
+    /// header), and is caught here by the row that owns it.
+    /// </remarks>
     private void OnTreeItemRequestBringIntoView(object sender, RequestBringIntoViewEventArgs e)
     {
-        if (_bringingRowIntoView || sender is not TreeViewItem row || !ReferenceEquals(e.TargetObject, row))
+        if (_bringingRowIntoView || sender is not TreeViewItem row || e.TargetObject is not DependencyObject target
+            || !ReferenceEquals(OwningRow(target), row))
             return;
         e.Handled = true;
         var header = row.Template?.FindName("PART_Header", row) as FrameworkElement;
@@ -292,6 +298,10 @@ public partial class MainWindow
         row.BringIntoView();
         return row;
     }
+
+    /// <summary>The tree row an element belongs to: itself when it is a row, else its nearest row ancestor.</summary>
+    private static TreeViewItem? OwningRow(DependencyObject element) =>
+        element as TreeViewItem ?? (element is Visual ? FindAncestor<TreeViewItem>(element) : null);
 
     private static T? FindAncestor<T>(DependencyObject child) where T : DependencyObject
     {
