@@ -46,8 +46,10 @@ jobs:
         uses: ./.github/actions/checkout-pwiz-sharp
 
       # The Panorama test needs credentials CI does not have; package-and-verify.ps1 runs it locally.
+      # The test project, as CI tests it, not Glimpse.sln: the solution lists the pwiz-sharp projects at
+      # their local sibling path (..\..\ProteoWizard), which does not exist on the runner.
       - name: Test
-        run: dotnet test Glimpse.sln --configuration Release --filter "Category!=PanoramaData"
+        run: dotnet test tests/Glimpse.Tests --configuration Release --filter "Category!=PanoramaData"
 
       - name: Package SkylineGlimpse.zip
         run: dotnet msbuild build/package.proj /p:Configuration=Release
