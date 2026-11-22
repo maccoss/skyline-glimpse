@@ -112,7 +112,11 @@ public static class DocumentModelBuilder
         return new DocumentModel(documentPath, proteins, files);
     }
 
-    private static void ReadPeaks(CsvTable p, Dictionary<string, DocPrecursor> precursorByKey, List<ResultFileInfo> files, string? fileName = null)
+    /// <returns>
+    /// With <paramref name="fileName"/>, the number of precursors left without a peak because the report
+    /// gave them differing peaks (a replicate of several files; see <see cref="ApplyPeaks(DocumentModel, CsvTable, string?, out int)"/>).
+    /// </returns>
+    private static int ReadPeaks(CsvTable p, Dictionary<string, DocPrecursor> precursorByKey, List<ResultFileInfo> files, string? fileName = null)
     {
         int cLoc = p.Column("PrecursorLocator", "Precursor Locator"),
             cProt = p.Column("ProteinName", "Protein Name", "Protein"),
@@ -132,9 +136,11 @@ public static class DocumentModelBuilder
         // A precursor is named by its locator, or by the columns the locator is built from.
         var named = cLoc >= 0 || (cProt >= 0 && (cPepMod >= 0 || cSeq >= 0) && cZ >= 0);
         if (!named || (cFile < 0 && fileName is null))
-            return;
+            return 0;
 
         var seenFiles = new Dictionary<string, ResultFileInfo>(StringComparer.OrdinalIgnoreCase);
+        // Rows taken to belong to fileName: a precursor given two different peaks is ambiguous.
+        var taken = fileName is null ? null : new Dictionary<DocPrecursor, PeakBounds?>();
         foreach (var row in p.Rows)
         {
             var file = fileName ?? CsvTable.Get(row, cFile);
@@ -156,9 +162,27 @@ public static class DocumentModelBuilder
             var bounds = new PeakBounds(
                 CsvTable.GetDouble(row, cApex), CsvTable.GetDouble(row, cStart), CsvTable.GetDouble(row, cEnd),
                 CsvTable.GetNullableDouble(row, cQ), CsvTable.GetNullableDouble(row, cDotp), CsvTable.GetNullableDouble(row, cIdotp));
-            if (bounds.HasBoundaries || double.IsFinite(bounds.Apex))
+            var usable = bounds.HasBoundaries || double.IsFinite(bounds.Apex);
+            if (taken is not null)
+            {
+                if (taken.TryGetValue(precursor, out var earlier))
+                {
+                    // A second row for the same precursor: the replicate has more than one file, and the
+                    // report cannot say which row is this file's. Leave the precursor without a peak
+                    // rather than keep whichever row came last. Identical rows are harmless.
+                    if (earlier != bounds)
+                    {
+                        taken[precursor] = null;
+                        precursor.Peaks.TryRemove(file, out _);
+                    }
+                    continue;
+                }
+                taken[precursor] = bounds;
+            }
+            if (usable)
                 precursor.Peaks[file] = bounds;
         }
+        return taken?.Count(kv => kv.Value is null) ?? 0;
     }
 
     /// <summary>
@@ -166,7 +190,16 @@ public static class DocumentModelBuilder
     /// <paramref name="fileName"/>, every row is taken to belong to that file (a report filtered to one
     /// replicate carries no file column). Returns the number of peaks added.
     /// </summary>
-    public static int ApplyPeaks(DocumentModel model, CsvTable peaks, string? fileName = null)
+    public static int ApplyPeaks(DocumentModel model, CsvTable peaks, string? fileName = null) =>
+        ApplyPeaks(model, peaks, fileName, out _);
+
+    /// <summary>
+    /// <see cref="ApplyPeaks(DocumentModel, CsvTable, string?)"/>, also counting the precursors left
+    /// without a peak in <paramref name="fileName"/> because the report gave them more than one. That
+    /// happens when the replicate holds several files: a report filtered to the replicate has a row per
+    /// file and no column saying which file each row is.
+    /// </summary>
+    public static int ApplyPeaks(DocumentModel model, CsvTable peaks, string? fileName, out int ambiguous)
     {
         var byLocator = new Dictionary<string, DocPrecursor>(StringComparer.Ordinal);
         foreach (var p in model.Precursors)
@@ -175,7 +208,7 @@ public static class DocumentModelBuilder
                 byLocator.TryAdd(p.Locator, p);
         }
         var before = model.Precursors.Sum(p => p.Peaks.Count);
-        ReadPeaks(peaks, byLocator, new List<ResultFileInfo>(), fileName);
+        ambiguous = ReadPeaks(peaks, byLocator, new List<ResultFileInfo>(), fileName);
         return model.Precursors.Sum(p => p.Peaks.Count) - before;
     }
 

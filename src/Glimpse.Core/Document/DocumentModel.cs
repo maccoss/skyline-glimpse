@@ -13,6 +13,7 @@ public sealed class DocumentModel
         ResultFiles = resultFiles;
         Peptides = proteins.SelectMany(p => p.Peptides).ToArray();
         Precursors = Peptides.SelectMany(p => p.Precursors).ToArray();
+        _locatorIndex = new Lazy<LocatorIndex>(BuildLocatorIndex);
     }
 
     public static DocumentModel Empty { get; } = new(null, Array.Empty<DocProtein>(), Array.Empty<ResultFileInfo>());
@@ -36,26 +37,59 @@ public sealed class DocumentModel
     public bool HasPeaksFor(string fileName) => Precursors.Any(p => p.Peaks.ContainsKey(fileName));
 
     /// <summary>
-    /// The peptides a Skyline selection locator refers to: a protein selects all its peptides, a
-    /// peptide itself, a precursor or transition its peptide.
+    /// The peptides a Skyline selection locator refers to, in document order: a protein selects all its
+    /// peptides, a peptide itself, a precursor or transition its peptide.
     /// </summary>
+    /// <remarks>
+    /// A lookup, not a scan: selecting every protein in Skyline sends thousands of locators, and comparing
+    /// each with all 69,000 peptides of a large document hung the window.
+    /// </remarks>
     public IEnumerable<DocPeptide> PeptidesForLocator(string locator)
     {
         var path = LocatorPath(locator);
         if (path.Length == 0)
-            yield break;
-        foreach (var peptide in Peptides)
+            return Array.Empty<DocPeptide>();
+        var index = _locatorIndex.Value;
+        var found = new List<int>();
+        // The peptide itself, and the peptides beneath it (path is a protein's).
+        if (index.ByPath.TryGetValue(path, out var own))
+            found.AddRange(own);
+        if (index.ByAncestor.TryGetValue(path, out var below))
+            found.AddRange(below);
+        // The peptide above it (path is a precursor's or a transition's).
+        for (var cut = path.IndexOf('/', 1); cut > 0; cut = path.IndexOf('/', cut + 1))
         {
-            var own = LocatorPath(peptide.Locator);
+            if (index.ByPath.TryGetValue(path[..cut], out var above))
+                found.AddRange(above);
+        }
+        return found.Distinct().Order().Select(i => Peptides[i]).ToList();
+    }
+
+    private readonly Lazy<LocatorIndex> _locatorIndex;
+
+    /// <summary>Peptide positions by their locator path, and by every path that path starts with.</summary>
+    private sealed record LocatorIndex(Dictionary<string, List<int>> ByPath, Dictionary<string, List<int>> ByAncestor);
+
+    private LocatorIndex BuildLocatorIndex()
+    {
+        var byPath = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+        var byAncestor = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+        static void Add(Dictionary<string, List<int>> map, string key, int value)
+        {
+            if (!map.TryGetValue(key, out var list))
+                map[key] = list = new List<int>();
+            list.Add(value);
+        }
+        for (var i = 0; i < Peptides.Count; i++)
+        {
+            var own = LocatorPath(Peptides[i].Locator);
             if (own.Length == 0)
                 continue;
-            if (own == path
-                || own.StartsWith(path + "/", StringComparison.Ordinal)
-                || path.StartsWith(own + "/", StringComparison.Ordinal))
-            {
-                yield return peptide;
-            }
+            Add(byPath, own, i);
+            for (var cut = own.IndexOf('/', 1); cut > 0; cut = own.IndexOf('/', cut + 1))
+                Add(byAncestor, own[..cut], i);
         }
+        return new LocatorIndex(byPath, byAncestor);
     }
 
     /// <summary>The path part of a locator ("Molecule:/protein/peptide" gives "/protein/peptide").</summary>

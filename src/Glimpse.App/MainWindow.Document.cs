@@ -150,10 +150,14 @@ public partial class MainWindow
     {
         var fileName = ResultFileNameFor(path);
         var file = _document.ResultFiles.FirstOrDefault(f => f.FileName == fileName);
-        if (_skyline is null || fileName is null || file is null || _document.HasPeaksFor(fileName))
+        if (_skyline is null || fileName is null || file is null)
             return Task.CompletedTask;
+        // The running load first: while it applies its rows the file already has some peaks, and a caller
+        // that took that for done would measure the file against half of them.
         if (_peakLoads.TryGetValue(fileName, out var running))
             return running;
+        if (_document.HasPeaksFor(fileName))
+            return Task.CompletedTask;
         var skyline = _skyline;
         var document = _document;
         var task = Task.Run(() => SkylineDocumentLoader.LoadPeaks(skyline, document, file, App.WriteLog));

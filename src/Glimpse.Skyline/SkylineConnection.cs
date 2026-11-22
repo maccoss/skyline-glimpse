@@ -1,6 +1,7 @@
 #nullable enable
 
 using System;
+using System.Globalization;
 using System.IO;
 using System.IO.Pipes;
 using System.Linq;
@@ -124,7 +125,7 @@ public sealed class SkylineConnection
     public string GetDocumentPath() => Call(c => c.GetDocumentPath());
 
     public int? GetProcessId() =>
-        int.TryParse(Call(c => c.GetProcessId()), out var pid) ? pid : null;
+        int.TryParse(Call(c => c.GetProcessId()), NumberStyles.Integer, CultureInfo.InvariantCulture, out var pid) ? pid : null;
 
     /// <summary>Pipe name of the newest instance in ~/.skyline-mcp/connection-*.json, or null.</summary>
     internal static string? MostRecentAdvertised(string dir)

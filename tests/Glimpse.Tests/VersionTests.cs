@@ -32,6 +32,15 @@ public class VersionTests
     }
 
     [Fact]
+    public void TheSolutionRunsTheTests()
+    {
+        // package-and-verify.ps1 and CLAUDE.md test through Glimpse.sln. Without the test project in it,
+        // "dotnet test Glimpse.sln" succeeds having run nothing, and the release gate passes untested.
+        var solution = File.ReadAllText(Path.Combine(TestData.RepoRoot, "Glimpse.sln"));
+        Assert.Contains(@"tests\Glimpse.Tests\Glimpse.Tests.csproj", solution);
+    }
+
+    [Fact]
     public void VersionIsCalVerYearFeaturePatch()
     {
         // YY.feature.patch, e.g. 26.1.0: a two-digit year from 2026 on, then the feature and patch counters.

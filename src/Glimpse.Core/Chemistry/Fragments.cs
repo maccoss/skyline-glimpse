@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Glimpse.Core.Chemistry;
 
 /// <summary>Fragment ion series.</summary>
@@ -128,7 +130,7 @@ public static class Fragments
         {
             var open = text.IndexOf('[');
             var iso = open >= 0 ? text[(open + 1)..].TrimEnd(']') : "M";
-            var ordinal = iso.StartsWith("M+", StringComparison.Ordinal) && int.TryParse(iso[2..], out var k) ? k : 0;
+            var ordinal = iso.StartsWith("M+", StringComparison.Ordinal) && int.TryParse(iso[2..], NumberStyles.Integer, CultureInfo.InvariantCulture, out var k) ? k : 0;
             return (IonType.Precursor, ordinal, iso);
         }
         if (text.Length >= 2 && char.IsLetter(text[0]))
@@ -156,7 +158,7 @@ public static class Fragments
                 at++;
             }
             var digits = new string(text.Skip(at).TakeWhile(char.IsDigit).ToArray());
-            if (type != IonType.Other && int.TryParse(digits, out var n))
+            if (type != IonType.Other && int.TryParse(digits, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n))
                 return (type, n, text + suffix);
         }
         return (IonType.Other, 0, text + suffix);

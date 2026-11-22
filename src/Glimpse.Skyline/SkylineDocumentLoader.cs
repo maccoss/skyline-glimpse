@@ -99,8 +99,11 @@ public static class SkylineDocumentLoader
                 DataSource = "document_grid", PivotReplicate = false,
                 Filter = new[] { new ReportFilter { Column = "ReplicateName", Op = "equals", Value = file.ReplicateName } },
             }, path);
-            var added = DocumentModelBuilder.ApplyPeaks(model, ReadReport(path), file.FileName);
+            var added = DocumentModelBuilder.ApplyPeaks(model, ReadReport(path), file.FileName, out var ambiguous);
             log?.Invoke($"Peaks for {file.FileName} exported in {clock.Elapsed.TotalSeconds:0.0} s: {added:N0} precursors");
+            if (ambiguous > 0)
+                log?.Invoke($"Replicate {file.ReplicateName} gave {ambiguous:N0} precursors more than one peak (it holds several files); "
+                    + $"those precursors have no peak in {file.FileName}.");
             return added;
         }
         finally

@@ -148,7 +148,9 @@ public partial class MainWindow : Window
             StatusText.Text = $"Waiting for the Skyline document before reading {Path.GetFileName(path)}...";
             await _documentLoaded;
         }
-        var peaks = EnsurePeaksAsync(path);
+        // A file given up while it waited must not ask for its peaks: the report would hold Skyline, and
+        // the file that replaced it would wait behind it.
+        var peaks = cts.IsCancellationRequested ? Task.CompletedTask : EnsurePeaksAsync(path);
         if (!peaks.IsCompleted)
         {
             StatusText.Text = $"Fetching Skyline's peaks for {Path.GetFileName(path)}...";
@@ -208,7 +210,9 @@ public partial class MainWindow : Window
         }
         catch (OperationCanceledException)
         {
-            StatusText.Text = "Cancelled.";
+            // Superseded by another file, which now owns the status bar, or cancelled by the user.
+            if (_loadCts == cts)
+                StatusText.Text = "Cancelled.";
         }
         catch (Exception ex)
         {

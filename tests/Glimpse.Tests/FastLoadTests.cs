@@ -46,6 +46,75 @@ public class FastLoadTests : IDisposable
     }
 
     [Fact]
+    public void AReplicateOfSeveralFilesLeavesItsAmbiguousPrecursorsWithoutAPeak()
+    {
+        var transitions = CsvTable.Read(new StringReader(
+            "ProteinName,PeptideSequence,PrecursorCharge,PrecursorMz,ProductMz\n"
+            + "P1,AAK,2,200,147\nP1,CCK,2,210,147\nP1,DDK,2,220,147\n"));
+        var model = DocumentModelBuilder.Build(null, transitions, null);
+        // A report filtered to a replicate of two files: a row per file and nothing saying which is which.
+        // AAK differs between the files, CCK is the same in both, DDK has a single row.
+        var peaks = CsvTable.Read(new StringReader(
+            "ProteinName,PeptideModifiedSequenceMonoisotopicMasses,PrecursorCharge,BestRetentionTime,MinStartTime,MaxEndTime\n"
+            + "P1,AAK,2,5,4,6\n"
+            + "P1,CCK,2,7,6,8\n"
+            + "P1,DDK,2,9,8,10\n"
+            + "P1,AAK,2,15,14,16\n"
+            + "P1,CCK,2,7,6,8\n"
+            + "P1,AAK,2,25,24,26\n"));
+        Assert.Equal(2, DocumentModelBuilder.ApplyPeaks(model, peaks, "f1.raw", out var ambiguous));
+        Assert.Equal(1, ambiguous);
+        Assert.Empty(model.Precursors[0].Peaks);                        // not whichever AAK row came last
+        Assert.Equal(7, model.Precursors[1].Peaks["f1.raw"].Apex);      // identical rows are harmless
+        Assert.Equal(9, model.Precursors[2].Peaks["f1.raw"].Apex);
+
+        // A one-file replicate is unaffected, and nothing is ambiguous.
+        var single = CsvTable.Read(new StringReader(
+            "ProteinName,PeptideModifiedSequenceMonoisotopicMasses,PrecursorCharge,BestRetentionTime,MinStartTime,MaxEndTime\n"
+            + "P1,AAK,2,5,4,6\n"));
+        Assert.Equal(1, DocumentModelBuilder.ApplyPeaks(model, single, "f2.raw", out var none));
+        Assert.Equal(0, none);
+        Assert.Equal(5, model.Precursors[0].Peaks["f2.raw"].Apex);
+    }
+
+    [Fact]
+    public void SkylineSelectionsAreLookedUpNotScanned()
+    {
+        var p1 = new DocProtein("P1", null, null, "MoleculeGroup:/P1");
+        var slash = new DocProtein("Decoys/1", null, null, SkylineLocators.Protein("Decoys/1"));
+        var aak = new DocPeptide(p1, "AAK", "AAK", "Molecule:/P1/AAK");
+        var ccr = new DocPeptide(p1, "CCR", "CCR", "Molecule:/P1/CCR");
+        var decoy = new DocPeptide(slash, "KAA", "KAA", SkylineLocators.Peptide("Decoys/1", "KAA"));
+        p1.Peptides.AddRange(new[] { aak, ccr });
+        slash.Peptides.Add(decoy);
+        var model = new DocumentModel(null, new[] { p1, slash }, Array.Empty<ResultFileInfo>());
+
+        // Document order, whatever the order of the lookups that found them.
+        Assert.Equal(new[] { aak, ccr }, model.PeptidesForLocator("MoleculeGroup:/P1"));
+        // A quoted name holding a slash: its protein, the peptide, and a precursor beneath it.
+        Assert.Equal(new[] { decoy }, model.PeptidesForLocator("MoleculeGroup:/\"Decoys/1\""));
+        Assert.Equal(new[] { decoy }, model.PeptidesForLocator("Molecule:/\"Decoys/1\"/KAA"));
+        Assert.Equal(new[] { decoy }, model.PeptidesForLocator("Precursor:/\"Decoys/1\"/KAA/light++"));
+        Assert.Empty(model.PeptidesForLocator("MoleculeGroup:/P2"));
+        Assert.Empty(model.PeptidesForLocator("Molecule:/P1/AA"));
+
+        // Every protein of a 5,000-protein, 50,000-peptide document selected in Skyline. Comparing each
+        // locator with every peptide took 10 s here; a lookup takes milliseconds.
+        var proteins = Enumerable.Range(0, 5000).Select(i => new DocProtein($"P{i}", null, null, $"MoleculeGroup:/P{i}")).ToArray();
+        foreach (var protein in proteins)
+        {
+            for (var j = 0; j < 10; j++)
+                protein.Peptides.Add(new DocPeptide(protein, $"K{j}", $"K{j}", $"Molecule:/{protein.Name}/K{j}"));
+        }
+        var big = new DocumentModel(null, proteins, Array.Empty<ResultFileInfo>());
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var selected = proteins.SelectMany(p => big.PeptidesForLocator(p.Locator!)).Distinct().Count();
+        clock.Stop();
+        Assert.Equal(50000, selected);
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(2), $"Selection lookup took {clock.Elapsed.TotalSeconds:0.0} s");
+    }
+
+    [Fact]
     public void PeaksMatchPrecursorsByName()
     {
         var transitions = CsvTable.Read(new StringReader(
