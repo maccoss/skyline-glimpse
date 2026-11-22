@@ -55,6 +55,24 @@ public sealed class ScanIndex
 
     public ScanHeader this[int index] => _headers[index];
 
+    /// <summary>
+    /// The analyzer every scan of an MS level was recorded with, or Unknown when the level has no scans or
+    /// mixes analyzers (an Orbitrap Fusion measuring some MS2 scans in the ion trap, some in the Orbitrap).
+    /// </summary>
+    public MassAnalyzer AnalyzerOf(int msLevel)
+    {
+        var scans = IndicesOfLevel(msLevel);
+        if (scans.Count == 0)
+            return MassAnalyzer.Unknown;
+        var first = _headers[scans[0]].Analyzer;
+        for (var i = 1; i < scans.Count; i++)
+        {
+            if (_headers[scans[i]].Analyzer != first)
+                return MassAnalyzer.Unknown;
+        }
+        return first;
+    }
+
     /// <summary>Spectrum indices of one MS level, in file (and so retention-time) order.</summary>
     public IReadOnlyList<int> IndicesOfLevel(int msLevel) =>
         msLevel >= 0 && msLevel < _byLevel.Length ? _byLevel[msLevel] : Array.Empty<int>();

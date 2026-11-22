@@ -48,6 +48,11 @@ public partial class MainWindow
         float[,] values;
         string label;
         var saturation = double.NaN;
+        // Ions: the grid holds intensity x injection time; the level's α (when all its scans share one
+        // analyzer the table knows) turns it into calibrated ions.
+        var divisor = Units == Core.Data.IntensityUnits.Ions && valueMode == (int)HeatmapValue.Intensity
+            ? Calibration.Divisor(_run.Index.AnalyzerOf(HeatLevel))
+            : 1;
         var log = HeatmapScale.IsLog((HeatmapValue)valueMode, HeatLogCheck.IsChecked == true);
         switch (valueMode)
         {
@@ -74,7 +79,7 @@ public partial class MainWindow
                 {
                     // Linear: the top color at a high quantile, so a few huge peaks do not leave the rest dark.
                     saturation = (double)_saturationLevels.GetValue(values,
-                        g => HeatmapScale.Quantile(g, HeatmapScale.IntensitySaturationQuantile));
+                        g => HeatmapScale.Quantile(g, HeatmapScale.IntensitySaturationQuantile)) / divisor;
                 }
                 break;
         }
@@ -85,7 +90,7 @@ public partial class MainWindow
             return;
         }
 
-        var heat = plot.Add.Heatmap(ToDisplay(values, log));
+        var heat = plot.Add.Heatmap(ToDisplay(values, log, divisor));
         heat.Colormap = Glimpse.Plotting.FigureStyle.HeatmapColormap(intensity: valueMode == (int)HeatmapValue.Intensity);
         if (saturation > 0)
             heat.ManualRange = new ScottPlot.Range(0, saturation);
@@ -108,9 +113,10 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// The grid as ScottPlot wants it: row 0 at the TOP (highest m/z), optionally log10(1 + v).
+    /// The grid as ScottPlot wants it: row 0 at the TOP (highest m/z), each cell divided by
+    /// <paramref name="divisor"/>, optionally log10(1 + v).
     /// </summary>
-    private static double[,] ToDisplay(float[,] values, bool log)
+    private static double[,] ToDisplay(float[,] values, bool log, double divisor)
     {
         var rows = values.GetLength(0);
         var cols = values.GetLength(1);
@@ -120,7 +126,7 @@ public partial class MainWindow
             var src = rows - 1 - r;
             for (var c = 0; c < cols; c++)
             {
-                double v = values[src, c];
+                var v = values[src, c] / divisor;
                 result[r, c] = float.IsNaN(values[src, c]) ? double.NaN : log ? Math.Log10(1 + Math.Max(0, v)) : v;
             }
         }

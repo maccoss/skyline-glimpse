@@ -1,0 +1,53 @@
+<Window x:Class="Glimpse.App.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Glimpse settings" Width="620" Height="640" MinWidth="480" MinHeight="420"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <DockPanel Margin="10">
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Content="OK" Width="80" IsDefault="True" Click="OnOk" />
+            <Button Content="Cancel" Width="80" Margin="8,0,0,0" IsCancel="True" />
+        </StackPanel>
+        <TabControl>
+            <TabItem Header="Plots">
+                <DockPanel Margin="8">
+                    <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Margin="0,0,0,8"
+                               Text="Sizes for a plot of about 1000 x 400 at 100% display scaling, in points (text) and pixels (lines). Larger plots grow them when the box below is ticked." />
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
+                        <CheckBox x:Name="ScaleWithSizeCheck" Content="Grow text and lines with the plot (up to 2.5 times)" VerticalAlignment="Center" />
+                        <Button Content="Restore defaults" Margin="16,0,0,0" Padding="8,2" Click="OnRestoreFigureDefaults" />
+                    </StackPanel>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <Grid x:Name="FigureGrid">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="90" />
+                            </Grid.ColumnDefinitions>
+                        </Grid>
+                    </ScrollViewer>
+                </DockPanel>
+            </TabItem>
+            <TabItem Header="Ion calibration">
+                <DockPanel Margin="8">
+                    <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Margin="0,0,0,8">
+                        With Units set to Ions, Glimpse shows intensity x injection time divided by the α of the analyzer that
+                        recorded each scan, so ion counts compare across instruments. The published values are from
+                        Hsu et al., J. Proteome Res. 2025, 24, 5742 (Table 1). An instrument or analyzer without a row, or a file
+                        whose instrument model is unknown, uses α 1 (ions are intensity x injection time). The instrument name
+                        must match the one shown in the Properties panel.
+                    </TextBlock>
+                    <Button DockPanel.Dock="Bottom" Content="Restore published values" HorizontalAlignment="Left" Margin="0,8,0,0" Padding="8,2"
+                            Click="OnRestorePublishedAlphas" />
+                    <DataGrid x:Name="AlphaGrid" AutoGenerateColumns="False" CanUserAddRows="True" CanUserDeleteRows="True"
+                              HeadersVisibility="Column" SelectionMode="Single">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Instrument" Width="*" Binding="{Binding Instrument, UpdateSourceTrigger=PropertyChanged}" />
+                            <DataGridComboBoxColumn x:Name="AnalyzerColumn" Header="Analyzer" Width="110" SelectedItemBinding="{Binding Analyzer}" />
+                            <DataGridTextColumn Header="α" Width="80" Binding="{Binding Alpha, UpdateSourceTrigger=PropertyChanged}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>

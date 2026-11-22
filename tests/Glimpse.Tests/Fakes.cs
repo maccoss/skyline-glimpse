@@ -19,17 +19,21 @@ internal sealed class FakeSource : IMsDataSource
 
     public int Reads { get; private set; }
 
-    public FakeSource Ms1(double rt, double[] mz, double[] intensity, float injectionMs = 10f)
+    public FakeSource Ms1(double rt, double[] mz, double[] intensity, float injectionMs = 10f, MassAnalyzer analyzer = MassAnalyzer.Unknown)
     {
-        _spectra.Add(Spectrum(_spectra.Count, 1, rt, mz, intensity, injectionMs, double.NaN, double.NaN));
+        _spectra.Add(WithAnalyzer(Spectrum(_spectra.Count, 1, rt, mz, intensity, injectionMs, double.NaN, double.NaN), analyzer));
         return this;
     }
 
-    public FakeSource Ms2(double rt, double lower, double upper, double[] mz, double[] intensity, float injectionMs = 10f)
+    public FakeSource Ms2(double rt, double lower, double upper, double[] mz, double[] intensity, float injectionMs = 10f,
+        MassAnalyzer analyzer = MassAnalyzer.Unknown)
     {
-        _spectra.Add(Spectrum(_spectra.Count, 2, rt, mz, intensity, injectionMs, lower, upper));
+        _spectra.Add(WithAnalyzer(Spectrum(_spectra.Count, 2, rt, mz, intensity, injectionMs, lower, upper), analyzer));
         return this;
     }
+
+    private static SpectrumData WithAnalyzer(SpectrumData s, MassAnalyzer analyzer) =>
+        analyzer == MassAnalyzer.Unknown ? s : new SpectrumData(s.Header with { Analyzer = analyzer }, s.Mz, s.Intensity, s.Details);
 
     public SpectrumData ReadSpectrum(int index, bool centroid)
     {

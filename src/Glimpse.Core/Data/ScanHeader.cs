@@ -25,6 +25,7 @@ public enum Polarity : byte
 /// <param name="PeakCount">Number of (m/z, intensity) points.</param>
 /// <param name="Polarity">Scan polarity.</param>
 /// <param name="Centroided">True when the peak list is centroided (by the instrument or the vendor library).</param>
+/// <param name="Analyzer">The mass analyzer that recorded the scan (its ion calibration α depends on it).</param>
 public readonly record struct ScanHeader(
     int Index,
     byte MsLevel,
@@ -38,7 +39,8 @@ public readonly record struct ScanHeader(
     float BasePeakIntensity,
     int PeakCount,
     Polarity Polarity,
-    bool Centroided)
+    bool Centroided,
+    MassAnalyzer Analyzer = MassAnalyzer.Unknown)
 {
     /// <summary>True when the scan has an isolation window, i.e. it is an MSn scan with precursor information.</summary>
     public bool HasIsolationWindow => !double.IsNaN(IsolationLower) && !double.IsNaN(IsolationUpper);

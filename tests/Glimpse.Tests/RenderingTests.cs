@@ -6,6 +6,7 @@ using Xunit;
 namespace Glimpse.Tests;
 
 /// <summary>What the plottables actually draw, checked pixel by pixel on rendered images.</summary>
+[Collection(FigureStyleCollection.Name)]
 public class RenderingTests
 {
     private static readonly SKColor White = new(255, 255, 255);

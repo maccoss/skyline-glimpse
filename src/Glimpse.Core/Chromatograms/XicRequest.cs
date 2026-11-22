@@ -12,9 +12,9 @@ namespace Glimpse.Core.Chromatograms;
 /// </summary>
 public sealed record XicRequest(
     ScanIndex Index, DocumentSignals Signals, IReadOnlyList<DocPeptide> Peptides, XicMode Mode, bool Ms1, IntensityUnits Units,
-    bool IntegratedOnly)
+    bool IntegratedOnly, IonCalibration? Calibration = null)
 {
-    public List<XicTrace> Build() => XicTraces.Build(Index, Signals, Peptides, Mode, Ms1, Units, IntegratedOnly);
+    public List<XicTrace> Build() => XicTraces.Build(Index, Signals, Peptides, Mode, Ms1, Units, IntegratedOnly, Calibration);
 
     public bool Equals(XicRequest? other) =>
         other is not null
@@ -24,11 +24,12 @@ public sealed record XicRequest(
         && Mode == other.Mode
         && Ms1 == other.Ms1
         && Units == other.Units
-        && IntegratedOnly == other.IntegratedOnly;
+        && IntegratedOnly == other.IntegratedOnly
+        && Equals(Calibration, other.Calibration);
 
     public override int GetHashCode() => HashCode.Combine(
         RuntimeHelpers.GetHashCode(Index), RuntimeHelpers.GetHashCode(Signals), RuntimeHelpers.GetHashCode(Peptides),
-        Mode, Ms1, Units, IntegratedOnly);
+        Mode, Ms1, Units, IntegratedOnly, Calibration);
 }
 
 /// <summary>

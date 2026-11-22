@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using Glimpse.App.Plotting;
+using Glimpse.Plotting;
 using Glimpse.Core.Data;
 using Glimpse.Core.Heatmaps;
 using Glimpse.Core.Scans;
@@ -29,8 +30,12 @@ public partial class MainWindow : Window
     /// <summary>The file being opened (waiting for peaks or being read), or null.</summary>
     private string? _openingPath;
 
+    /// <summary>The user's settings: figure sizes and the ion calibration table.</summary>
+    private GlimpseSettings _glimpseSettings = GlimpseSettings.Load(GlimpseSettings.DefaultPath);
+
     public MainWindow()
     {
+        FigureStyle.Current = _glimpseSettings.Figures;
         InitializeComponent();
         Title = App.ProductTitle;
         DataContext = this;
@@ -44,6 +49,47 @@ public partial class MainWindow : Window
     public ObservableCollection<PropertyRow> Properties { get; } = new();
 
     private IntensityUnits Units => UnitsCombo.SelectedIndex == 1 ? IntensityUnits.Ions : IntensityUnits.AsRecorded;
+
+    /// <summary>The open run's α factors from the calibration table (uncalibrated when the instrument is not in it).</summary>
+    private IonCalibration Calibration => CalibrationFor(_run?.Index.Run.InstrumentModel);
+
+    private IonCalibration CalibrationFor(string? instrumentModel) => IonCalibration.For(instrumentModel, _glimpseSettings.IonCalibration);
+
+    private void OnSettings(object sender, RoutedEventArgs e)
+    {
+        var dialog = new SettingsWindow(_glimpseSettings) { Owner = this };
+        if (dialog.ShowDialog() != true)
+            return;
+        _glimpseSettings = dialog.Result;
+        try
+        {
+            _glimpseSettings.Save(GlimpseSettings.DefaultPath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            App.WriteLog("Could not save settings: " + ex.Message);
+            MessageBox.Show(this, "The settings apply now but could not be saved: " + ex.Message, "Glimpse", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        ApplyFigureSettings();
+    }
+
+    /// <summary>Restyle every plot with the current settings and draw everything again.</summary>
+    private void ApplyFigureSettings()
+    {
+        FigureStyle.Current = _glimpseSettings.Figures;
+        StylePlot(ChromPlot.Plot, "Retention time (min)", ChromPlot.Plot.Axes.Left.Label.Text);
+        StylePlot(HeatPlot.Plot, "Retention time (min)", HeatPlot.Plot.Axes.Left.Label.Text);
+        StylePlot(SpectrumPlot.Plot, "m/z", SpectrumPlot.Plot.Axes.Left.Label.Text);
+        foreach (var plot in new[] { ChromPlot, HeatPlot, SpectrumPlot })
+            PlotClicks.MatchDisplayScale(plot);
+        if (_run is null)
+            return;
+        RefreshChromatogram(autoscale: false);
+        RefreshHeatmap(autoscale: false);
+        ShowRunProperties();
+        if (_currentScan >= 0)
+            _ = ShowSpectrumAsync(_currentScan);
+    }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {

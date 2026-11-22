@@ -20,7 +20,9 @@ signal assignment. See README.md for the feature list and layout.
   Pass `CultureInfo.InvariantCulture` explicitly whenever parsing or formatting data, and request
   reports with culture `"invariant"`.
 - **Units.** Retention times are minutes, injection times milliseconds. Ion counts are
-  `intensity * injectionTimeMs / 1000` (Skyline's `LcPeakIonMetrics` convention). A scan without an
+  `intensity * injectionTimeMs / 1000 / α` (Skyline's `LcPeakIonMetrics` convention, divided by the α of
+  the scan's analyzer from `IonCalibration` when the instrument has one, else not divided). Convert with
+  `IntensityConversion.Convert(value, header, units, calibration)`, never by hand. A scan without an
   injection time has no ion count (NaN), never a guessed one.
 - **One pass.** Anything that needs every spectrum's peaks is an `IScanObserver` riding on
   `ScanIndexBuilder.Build`, not a second walk over the file.

@@ -5,6 +5,7 @@ using Glimpse.Core.Data;
 using Pwiz.Data.Common.Cv;
 using Pwiz.Data.Common.Params;
 using Pwiz.Data.MsData;
+using Pwiz.Data.MsData.Instruments;
 using Pwiz.Data.MsData.Readers;
 using Pwiz.Data.MsData.Spectra;
 using Pwiz.Util.Misc;
@@ -173,8 +174,36 @@ public sealed partial class PwizMsDataSource : IMsDataSource
         return new ScanHeader(
             index, (byte)Math.Clamp(level, 0, 255), rt, (float)injectionMs,
             target, lower, upper, tic, bpMz, (float)bpI, mz.Length, polarity,
-            s.HasCVParam(CVID.MS_centroid_spectrum));
+            s.HasCVParam(CVID.MS_centroid_spectrum), AnalyzerOf(scan?.InstrumentConfiguration));
     }
+
+    /// <summary>
+    /// The analyzer that measured a scan's ions: the last analyzer of its instrument configuration (a
+    /// quadrupole that only isolates comes before the Orbitrap or Astral that measures).
+    /// </summary>
+    internal static MassAnalyzer AnalyzerOf(InstrumentConfiguration? configuration)
+    {
+        var result = MassAnalyzer.Unknown;
+        if (configuration is null)
+            return result;
+        foreach (var component in configuration.ComponentList.Where(c => c.Type == ComponentType.Analyzer).OrderBy(c => c.Order))
+        {
+            foreach (var p in component.CVParams)
+            {
+                var analyzer = Classify(p.Cvid);
+                if (analyzer != MassAnalyzer.Unknown)
+                    result = analyzer;
+            }
+        }
+        return result;
+    }
+
+    internal static MassAnalyzer Classify(CVID cvid) =>
+        cvid == CVID.MS_orbitrap ? MassAnalyzer.Orbitrap
+        : cvid == CVID.MS_Astral ? MassAnalyzer.Astral
+        : CvLookup.CvIsA(cvid, CVID.MS_ion_trap) ? MassAnalyzer.IonTrap
+        : CvLookup.CvIsA(cvid, CVID.MS_mass_analyzer_type) ? MassAnalyzer.Other
+        : MassAnalyzer.Unknown;
 
     private static SpectrumDetails ReadDetails(Spectrum s)
     {

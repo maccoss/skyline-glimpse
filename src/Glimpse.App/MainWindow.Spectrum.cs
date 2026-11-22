@@ -205,7 +205,8 @@ public partial class MainWindow
         plot.Clear();
         var h = s.Header;
         var ions = Units == IntensityUnits.Ions && h.HasInjectionTime;
-        var values = ions ? s.Intensity.Select(v => v * h.InjectionTimeMs / 1000.0).ToArray() : s.Intensity;
+        var divisor = Calibration.Divisor(h.Analyzer);
+        var values = ions ? s.Intensity.Select(v => v * h.InjectionTimeMs / 1000.0 / divisor).ToArray() : s.Intensity;
         _sticks = new StickPlottable(s.Mz, values);
         if (_annotation is { } a && a.Precursors.Count > 0)
         {
@@ -379,6 +380,7 @@ public partial class MainWindow
         Add("Retention time", $"{run.Index.RtFirst:0.00} - {run.Index.RtLast:0.00} min");
         Add("Isolation windows", run.Index.IsolationWindows.Count.ToString("N0", Inv));
         Add("Centroided", run.Centroid ? "vendor centroiding requested" : "as stored");
+        Add("Ion calibration", Calibration.Describe() ?? "α 1 (instrument not in the calibration table)");
         if (run.Signals is { } sig)
             Add("Document precursors", $"{sig.PrecursorsInFile:N0} with integrated peaks in this file");
         foreach (var c in info.Configurations)
@@ -412,6 +414,12 @@ public partial class MainWindow
         if (h.HasIsolationWindow)
             Add(acq, "Isolation window", $"{h.IsolationLower:0.0000} - {h.IsolationUpper:0.0000} (target {h.IsolationTarget:0.0000}, width {h.IsolationUpper - h.IsolationLower:0.###})");
         Add(acq, "Selected ion", d.SelectedIonMz is { } sel ? $"{sel:0.0000}" + (d.SelectedIonCharge is { } z ? $" ({z}+)" : "") : null);
+        if (h.Analyzer != MassAnalyzer.Unknown)
+        {
+            var alpha = Calibration.AlphaFor(h.Analyzer);
+            Add(acq, "Analyzer", AnalyzerName(h.Analyzer)
+                + (Calibration.IsCalibrated(h.Analyzer) ? $" (ion calibration α {alpha.ToString("0.##", Inv)})" : " (ion calibration α 1: not in the table)"));
+        }
         Add(acq, "Dissociation", d.Dissociation);
         Add(acq, "Collision energy", d.CollisionEnergy?.ToString("0.##", Inv));
         if (d.ScanWindowLower is { } lo && d.ScanWindowUpper is { } hi)
@@ -425,7 +433,7 @@ public partial class MainWindow
             Add(stats, "m/z range", $"{s.Mz[0]:0.0000} - {s.Mz[^1]:0.0000}");
         Add(stats, "TIC", $"{h.TotalIonCurrent:0.###E0}");
         if (h.HasInjectionTime)
-            Add(stats, "TIC (ions)", $"{h.TotalIonCurrent * h.InjectionTimeMs / 1000.0:0.###E0}");
+            Add(stats, "TIC (ions)", $"{IntensityConversion.Convert(h.TotalIonCurrent, h, IntensityUnits.Ions, Calibration):0.###E0}");
         if (!double.IsNaN(h.BasePeakMz))
             Add(stats, "Base peak", $"{h.BasePeakMz:0.0000} ({h.BasePeakIntensity:0.###E0})");
         if (_annotation is { } a)
@@ -433,7 +441,8 @@ public partial class MainWindow
             Add(stats, "Document peptides", a.Precursors.Count.ToString("N0", Inv));
             Add(stats, "Signal assigned", $"{a.AssignedFraction:P1} ({a.AssignedPeaks:N0} of {h.PeakCount:N0} peaks)");
             if (h.HasInjectionTime)
-                Add(stats, "Ions assigned", $"{a.AssignedIntensity * h.InjectionTimeMs / 1000.0:0.###E0} of {a.TotalIntensity * h.InjectionTimeMs / 1000.0:0.###E0}");
+                Add(stats, "Ions assigned", $"{IntensityConversion.Convert(a.AssignedIntensity, h, IntensityUnits.Ions, Calibration):0.###E0} of "
+                    + $"{IntensityConversion.Convert(a.TotalIntensity, h, IntensityUnits.Ions, Calibration):0.###E0}");
         }
 
         foreach (var (name, value) in d.Other)
@@ -480,4 +489,12 @@ public partial class MainWindow
             add(libCat, "dotp vs this spectrum", f.LibraryDotProduct?.ToString("0.000", Inv));
         }
     }
+
+    private static string AnalyzerName(MassAnalyzer analyzer) => analyzer switch
+    {
+        MassAnalyzer.Orbitrap => "Orbitrap",
+        MassAnalyzer.Astral => "Astral",
+        MassAnalyzer.IonTrap => "Ion trap",
+        _ => "Other",
+    };
 }
