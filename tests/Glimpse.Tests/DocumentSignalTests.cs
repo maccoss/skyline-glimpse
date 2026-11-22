@@ -159,41 +159,84 @@ public class DocumentSignalTests
         var p1 = new DocProtein("P1", null, null, null);
         var p2 = new DocProtein("P2", null, null, null);
         var p3 = new DocProtein("P3", null, null, null);
-        var aak = Docs.Precursor(p1, "AAK", 2, 400.0, "run1.raw", 0, 3, ("precursor", 2, 400.0));
-        var copy = Docs.Precursor(p3, "AAK", 2, 400.0, "run1.raw", 0, 3, ("precursor", 2, 400.0));
-        var cck = Docs.Precursor(p2, "CCK", 2, 400.001, "run1.raw", 0, 3, ("precursor", 2, 400.001));
+        // Integrated from 0 to 2.5 min; the XICs run a minute past that, so the scan at 3 min is in the
+        // margin. All three share the y2 fragment at 300 too.
+        var aak = Docs.Precursor(p1, "AAK", 2, 400.0, "run1.raw", 0, 2.5, ("precursor", 2, 400.0), ("y2", 1, 300.0));
+        var copy = Docs.Precursor(p3, "AAK", 2, 400.0, "run1.raw", 0, 2.5, ("precursor", 2, 400.0), ("y2", 1, 300.0));
+        var cck = Docs.Precursor(p2, "CCK", 2, 400.001, "run1.raw", 0, 2.5, ("precursor", 2, 400.001), ("y2", 1, 300.0));
         var source = new FakeSource()
             .Ms1(1, new[] { 400.0, 450.0 }, new[] { 100.0, 50.0 })
-            .Ms1(2, new[] { 400.0, 450.0 }, new[] { 60.0, 50.0 });
+            .Ms2(1.5, 395, 405, new[] { 300.0, 350.0 }, new[] { 40.0, 5.0 })
+            .Ms1(2, new[] { 400.0, 450.0 }, new[] { 60.0, 50.0 })
+            .Ms1(3, new[] { 400.0, 450.0 }, new[] { 30.0, 50.0 });
         var observer = new DocumentSignalObserver(Docs.Model(p1, p2, p3), "run1.raw", DocumentSettings.Default);
         var index = ScanIndexBuilder.Build(source, false, new IScanObserver[] { observer });
         var signals = observer.Result!;
         var all = new[] { aak.Peptide, cck.Peptide, copy.Peptide };
 
         // Integrated only: the union of claimed peaks. Three precursors claim the 400 peak; it counts once,
-        // and the sum stays under the TIC (150, then 110).
+        // the sum stays under the TIC (150, then 110), and the margin scan at 3 min is left out.
         var sum = Assert.Single(XicTraces.Build(index, signals, all, XicMode.Summed, true, IntensityUnits.AsRecorded, integratedOnly: true));
         Assert.Equal(new[] { 1.0, 2.0 }, sum.Times);
         Assert.Equal(new[] { 100.0, 60.0 }, sum.Values);
         Assert.Equal("Sum of 2 peptides", sum.Name);   // AAK and CCK: the copy is the same molecule
-        Assert.All(sum.Times.Select((t, i) => sum.Values[i] <= index[i].TotalIonCurrent), Assert.True);
+        var ms1Tic = index.Headers.Where(h => h.MsLevel == 1).ToDictionary(h => h.RetentionTime, h => h.TotalIonCurrent);
+        Assert.All(sum.Times.Select((t, i) => sum.Values[i] <= ms1Tic[t]), Assert.True);
+
+        // MS2 the same way: the shared fragment counts once (40, not 120), and only claimed peaks count.
+        var ms2 = Assert.Single(XicTraces.Build(index, signals, all, XicMode.Summed, false, IntensityUnits.AsRecorded, integratedOnly: true));
+        Assert.Equal(new[] { 1.5 }, ms2.Times);
+        Assert.Equal(new[] { 40.0 }, ms2.Values);
 
         // A shared peptide is drawn once per peptide, but each protein keeps it in its own trace.
         var perPeptide = XicTraces.Build(index, signals, all, XicMode.PerPeptide, true, IntensityUnits.AsRecorded, integratedOnly: true);
         Assert.Equal(new[] { aak.Peptide, cck.Peptide }, perPeptide.Select(t => t.Owner));
+        Assert.Equal(new[] { "AAK (P1)", "CCK (P2)" }, perPeptide.Select(t => t.Name));
         var perProtein = XicTraces.Build(index, signals, all, XicMode.PerProtein, true, IntensityUnits.AsRecorded, integratedOnly: true);
         Assert.Equal(new object[] { p1, p2, p3 }, perProtein.Select(t => t.Owner));
+        Assert.Equal(new[] { "P1 (1 peptides)", "P2 (1 peptides)", "P3 (1 peptides)" }, perProtein.Select(t => t.Name));
         Assert.All(perProtein, t => Assert.Equal(new[] { 100.0, 60.0 }, t.Values));
 
         // Not limited to the peak: the margins hold no claims, so each distinct precursor is summed once.
-        // The copy no longer adds, but AAK's and CCK's overlapping windows still do (100 + 100).
+        // The copy no longer adds, but AAK's and CCK's overlapping windows still do (100 + 100), out to the
+        // margin scan at 3 min (30 + 30).
         var margins = Assert.Single(XicTraces.Build(index, signals, all, XicMode.Summed, true, IntensityUnits.AsRecorded, integratedOnly: false));
+        Assert.Equal(1.0, margins.Times[0], 9);
+        Assert.Equal(3.0, margins.Times[^1], 9);
         Assert.Equal(200.0, margins.Values[0], 6);
-        Assert.Equal(120.0, margins.Values[^1], 6);
+        Assert.Equal(60.0, margins.Values[^1], 6);
 
         // Ions: the union is converted per scan (10 ms injections: x 0.01).
         var ions = Assert.Single(XicTraces.Build(index, signals, all, XicMode.Summed, true, IntensityUnits.Ions, integratedOnly: true));
         Assert.Equal(new[] { 1.0, 0.6 }, ions.Values.Select(v => Math.Round(v, 6)));
+    }
+
+    [Fact]
+    public void ACombinedXicWithoutRecordedClaimsFallsBackToSummingEachPrecursorOnce()
+    {
+        // XICs from before claims were recorded (or built by hand): no union is possible, so the traces are
+        // summed, each distinct precursor once. XX's 3+ precursor has no XIC in this file: XX still counts.
+        var protein = new DocProtein("P", null, null, null);
+        var claimed = Docs.Precursor(protein, "AAK", 2, 400.0, "run1.raw", 0, 5);
+        var unclaimed = Docs.Precursor(protein, "XXK", 2, 410.0, "run1.raw", 0, 5);
+        Docs.Precursor(protein, "XXK", 3, 273.7, "run1.raw", 0, 5);
+        var source = new FakeSource().Ms1(1, new[] { 500.0 }, new[] { 1.0 }).Ms1(2, new[] { 500.0 }, new[] { 1.0 });
+        var index = ScanIndexBuilder.Build(source, false, Array.Empty<IScanObserver>());
+        var xics = new Dictionary<DocPrecursor, PrecursorXic>
+        {
+            [claimed] = new PrecursorXic(claimed, new[] { 0, 1 }, new[] { 5f, 7f }, Array.Empty<int>(), Array.Empty<float>())
+            {
+                Ms1Claims = new PeakClaims(new[] { PeakClaims.Key(0, 0), PeakClaims.Key(1, 0) }, new[] { 5f, 7f }),
+            },
+            [unclaimed] = new PrecursorXic(unclaimed, new[] { 0, 1 }, new[] { 2f, 3f }, Array.Empty<int>(), Array.Empty<float>()),
+        };
+        var signals = new DocumentSignals("run1.raw", new float[2], new ushort[2], xics,
+            HeatmapGrid.Empty, HeatmapGrid.Empty, HeatmapGrid.Empty, HeatmapGrid.Empty, 2);
+
+        var sum = Assert.Single(XicTraces.Build(index, signals, protein.Peptides, XicMode.Summed, true, IntensityUnits.AsRecorded, integratedOnly: true));
+        Assert.Equal("Sum of 2 peptides", sum.Name);
+        Assert.Equal(7.0, sum.Values[0], 6);    // 5 + 2
+        Assert.Equal(10.0, sum.Values[^1], 6);  // 7 + 3
     }
 
     [Fact]
