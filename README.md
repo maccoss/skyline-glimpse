@@ -176,8 +176,11 @@ a sibling checkout:
   ProteoWizard/pwiz/pwiz-sharp/     (the reader)
 ```
 
-Point elsewhere with `-p:PwizSharpDir=<path>/pwiz/pwiz-sharp`. The Thermo SDK is license-gated;
-`Directory.Build.rsp` passes `-p:IAgreeToVendorLicenses=true` to every build.
+Point elsewhere with `-p:PwizSharpDir=<path>/pwiz/pwiz-sharp` or the `PWIZ_SHARP_DIR` environment
+variable. The Thermo SDK is license-gated; `Directory.Build.rsp` passes `-p:IAgreeToVendorLicenses=true`
+to every build. That flag does not reach the restore `dotnet build` and `dotnet test` run first, so on a
+fresh pwiz-sharp checkout run `dotnet restore Glimpse.sln` once first, or set the `IAgreeToVendorLicenses`
+environment variable to `true` (CI does).
 
 ```powershell
 dotnet build Glimpse.sln

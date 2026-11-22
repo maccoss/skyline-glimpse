@@ -19,8 +19,8 @@ runs:
     # The pwiz test data (Reader_Thermo_Test.data, example_data) is NOT checked out, so CI runs the tests
     # with --filter "Category!=RawData" (see tests/Glimpse.Tests/TestData.cs). Run the full suite locally.
     #
-    # Pwiz.props reads PWIZ_SHARP_DIR, so later steps need no -p:PwizSharpDir. Directory.Build.rsp passes
-    # -p:IAgreeToVendorLicenses=true to every build, so the Thermo reader is the real one.
+    # Pwiz.props reads PWIZ_SHARP_DIR, so later steps need no -p:PwizSharpDir. The workflows set the
+    # IAgreeToVendorLicenses environment variable, so the Thermo reader is the real one.
     #
     # TEMPORARY: once Skyline ships on .NET 10 with pwiz-sharp and its vendor readers, Glimpse loads them
     # from the Skyline installation (GlimpseReaders=Skyline in Pwiz.props) and this action goes away.

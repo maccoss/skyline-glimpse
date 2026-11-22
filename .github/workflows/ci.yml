@@ -14,6 +14,11 @@ jobs:
   build:
     name: Build, test and package the tool (windows)
     runs-on: windows-latest
+    # The vendor-license flag as an environment variable, which every MSBuild evaluation sees.
+    # Directory.Build.rsp does not reach the restore that dotnet build/test run first, so on a fresh
+    # pwiz-sharp checkout Waters.csproj (referenced only with the flag) was built but never restored.
+    env:
+      IAgreeToVendorLicenses: 'true'
     steps:
       - uses: actions/checkout@v7
 
