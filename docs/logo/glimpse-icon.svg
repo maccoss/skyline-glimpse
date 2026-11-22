@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>Glimpse</title>
+  <!-- The Seattle postcard view: the Space Needle on the left and Mount Rainier on the right, both behind
+       the eye, with MS1/MS2 tags and chromatographic peaks. Used for 64 px and up; see
+       glimpse-icon-small.svg for the smaller sizes. build/make-icon.ps1 renders both. -->
+  <defs><clipPath id="tile"><rect x="0" y="0" width="256" height="256" rx="56"/></clipPath></defs>
+  <rect x="0" y="0" width="256" height="256" rx="56" fill="#13274D"/>
+  <g clip-path="url(#tile)">
+  <!-- Mount Rainier behind the eye, on the right -->
+  <path d="M96 168 L182 70 L262 168 Z" fill="#4C80B5"/>
+  <path d="M182 70 L160 95 L170 98 L177 90 L184 99 L191 91 L198 97 L204 94 Z" fill="#FFFFFF"/>
+  <!-- Space Needle behind the eye, on the left -->
+  <g fill="#22A6A0">
+    <rect x="68.5" y="10" width="3" height="26" rx="1.5"/>
+    <path d="M64 36 H76 L78 42 H62 Z"/>
+    <ellipse cx="70" cy="45" rx="30" ry="5"/>
+    <path d="M53 48 H87 L80 58 H60 Z"/>
+    <path d="M61 58 H67 L68.5 80 L60 130 H52 Z"/>
+    <path d="M79 58 H73 L71.5 80 L80 130 H88 Z"/>
+    <rect x="64" y="78" width="12" height="4" rx="1"/>
+  </g>
+  <!-- MS1 / MS2 tags, top right -->
+  <rect x="150" y="16" width="44" height="24" rx="8" fill="#FFFFFF"/>
+  <text x="172" y="33" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="700" fill="#13274D">MS1</text>
+  <rect x="200" y="16" width="44" height="24" rx="8" fill="#22A6A0"/>
+  <text x="222" y="33" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="700" fill="#13274D">MS2</text>
+  <!-- The eye in front -->
+  <path d="M22 164 Q128 86 234 164 Q128 242 22 164 Z" fill="#13274D" stroke="#22A6A0" stroke-width="10" stroke-linejoin="round"/>
+  <circle cx="128" cy="164" r="38" fill="#F2665A"/>
+  <circle cx="128" cy="164" r="38" fill="none" stroke="#22A6A0" stroke-width="5"/>
+  <circle cx="128" cy="164" r="16" fill="#13274D"/>
+  <circle cx="134" cy="158" r="5" fill="#FFFFFF"/>
+  <!-- Peak trace across the lower right of the eye -->
+  <path d="M168.5 188 C173.725 188 174.675 158 178 158 C181.325 158 182.275 188 187.5 188 Z M188.5 188 C193.725 188 194.675 136 198 136 C201.325 136 202.275 188 207.5 188 Z M207.5 188 C212.725 188 213.675 166 217 166 C220.325 166 221.275 188 226.5 188 Z" fill="#F2665A" fill-opacity="0.45"/>
+  <path d="M166 188 L168.5 188 C173.725 188 174.675 158 178 158 C181.325 158 182.275 188 187.5 188 L188.5 188 C193.725 188 194.675 136 198 136 C201.325 136 202.275 188 207.5 188 L207.5 188 C212.725 188 213.675 166 217 166 C220.325 166 221.275 188 226.5 188 L232 188" fill="none" stroke="#F2665A" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

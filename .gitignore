@@ -1,0 +1,22 @@
+## .NET build outputs
+bin/
+obj/
+publish/
+build/staging/
+out/
+*.zip
+
+## IDEs
+.idea/
+.vs/
+*.user
+
+## Test / coverage
+[Tt]est[Rr]esults/
+coverage/
+*.trx
+
+## Mutation / coverage reports
+build/mutation/
+build/*.log
+StrykerOutput/

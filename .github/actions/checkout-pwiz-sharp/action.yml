@@ -1,0 +1,65 @@
+name: Check out pwiz-sharp
+description: >
+  Sparse-checkout the pwiz-sharp sources at a pinned commit and export PWIZ_SHARP_DIR. One copy, shared
+  by CI and release, because the commit below is a PIN: two copies drift, and a tagged release would then
+  contain something other than what CI tested. Copied from Skyline-PRISM's action of the same name.
+
+outputs:
+  directory:
+    description: Absolute path to the pwiz-sharp checkout, in a form MSBuild can resolve.
+    value: ${{ steps.checkout.outputs.directory }}
+
+runs:
+  using: composite
+  steps:
+    # pwiz-sharp is the .NET port of the ProteoWizard core. It has no package feed, so this is a source
+    # checkout pinned to a commit rather than a PackageReference. Sparse and blob-filtered: the pwiz
+    # repository is ~3.4 GB, the pwiz-sharp sources ~250 MB.
+    #
+    # The pwiz test data (Reader_Thermo_Test.data, example_data) is NOT checked out: the tests download the
+    # few files they read from GitHub at the same commit (tests/Glimpse.Tests/TestData.cs keeps a copy of
+    # the pin below; bump both together).
+    #
+    # Pwiz.props reads PWIZ_SHARP_DIR, so later steps need no -p:PwizSharpDir. The workflows set the
+    # IAgreeToVendorLicenses environment variable, so the Thermo reader is the real one.
+    #
+    # TEMPORARY: once Skyline ships on .NET 10 with pwiz-sharp and its vendor readers, Glimpse loads them
+    # from the Skyline installation (GlimpseReaders=Skyline in Pwiz.props) and this action goes away.
+    - id: checkout
+      shell: bash
+      working-directory: ${{ runner.temp }}
+      env:
+        # Bump deliberately, in this one place, to the commit Glimpse was tested against locally.
+        PWIZ_SHARP_COMMIT: 52acb7fd79baa0bd046899f48ca422ca9ab6e87d
+      run: |
+        set -euo pipefail
+        if [ -d pwiz/pwiz-sharp ]; then
+          echo "pwiz-sharp already checked out for this job."
+        else
+          mkdir -p pwiz && cd pwiz
+          git init -q .
+          # pwiz-sharp has paths past MAX_PATH; without this they are reported "Filename too long" and left out.
+          git config core.longpaths true
+          git remote add origin https://github.com/ProteoWizard/pwiz.git
+          # pwiz-sharp reaches outside its own directory for the PSI-MS controlled vocabulary
+          # (pwiz/data/common), 7za.exe (libraries) and the license-gated vendor archives (pwiz_aux).
+          SPARSE="pwiz-sharp/pwiz/src pwiz-sharp/vendor-archives pwiz-sharp/Tools pwiz-sharp/build"
+          SPARSE="$SPARSE pwiz/data/common libraries pwiz_aux"
+          git sparse-checkout set --cone $SPARSE
+          # Fetching the SHA itself, rather than a branch tip, is what makes this a pin.
+          git fetch -q --filter=blob:none --depth 1 origin "$PWIZ_SHARP_COMMIT"
+          git checkout -q FETCH_HEAD
+          cd ..
+        fi
+
+        # MSBuild must resolve this path, and the consuming step may be pwsh. On Windows, Git Bash's pwd
+        # prints "/d/a/_temp/pwiz", which MSBuild cannot resolve; pwd -W prints the Windows form.
+        cd pwiz
+        if [ "${RUNNER_OS:-}" = "Windows" ]; then
+          dir="$(pwd -W)/pwiz-sharp"
+        else
+          dir="$(pwd)/pwiz-sharp"
+        fi
+        echo "PWIZ_SHARP_DIR=$dir" >> "$GITHUB_ENV"
+        echo "directory=$dir" >> "$GITHUB_OUTPUT"
+        du -sh pwiz-sharp

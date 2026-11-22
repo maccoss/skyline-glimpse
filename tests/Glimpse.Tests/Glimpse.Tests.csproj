@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Windows: Glimpse.Skyline (named pipes) is a net10.0-windows project. -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- The Thermo SDK constructs CultureInfo("en-US") itself. -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <Import Project="..\..\Pwiz.props" />
+
+  <PropertyGroup>
+    <!-- The ProteoWizard checkout holding pwiz-sharp: its small Thermo test files are used when present,
+         otherwise TestData downloads them. -->
+    <PwizRepoDir>$(PwizSharpDir)\..</PwizRepoDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>PwizRepoDir</_Parameter1>
+      <_Parameter2>$([System.IO.Path]::GetFullPath('$(PwizRepoDir)'))</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>RepoRoot</_Parameter1>
+      <_Parameter2>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..'))</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Glimpse.Core\Glimpse.Core.csproj" />
+    <ProjectReference Include="..\..\src\Glimpse.Pwiz\Glimpse.Pwiz.csproj" />
+    <ProjectReference Include="..\..\src\Glimpse.Library\Glimpse.Library.csproj" />
+    <ProjectReference Include="..\..\src\Glimpse.Plotting\Glimpse.Plotting.csproj" />
+    <ProjectReference Include="..\..\src\Glimpse.Skyline\Glimpse.Skyline.csproj" />
+  </ItemGroup>
+
+</Project>

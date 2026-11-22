@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The reader seam. This is the ONLY project that may reference pwiz types; everything else sees
+    Glimpse.Core.Data.IMsDataSource. Today it project-references the bundled pwiz-sharp checkout
+    (GlimpseReaders=Bundled). When Skyline ships on .NET 10 with pwiz-sharp and every vendor reader in
+    its installation, GlimpseReaders=Skyline will reference those assemblies Private=false and resolve
+    them from the running Skyline instead - see ..\..\Pwiz.props.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Glimpse.Pwiz</RootNamespace>
+    <!-- pwiz-sharp's own documentation/analyzer warnings are not ours to fix. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <Import Project="..\..\Pwiz.props" />
+
+  <Target Name="RequirePwizSharp" BeforeTargets="ResolveProjectReferences" Condition="'$(PwizAvailable)' != 'true'">
+    <Error Text="Glimpse needs a pwiz-sharp checkout to read instrument files and found none at $(PwizSharpDir). Clone ProteoWizard/pwiz beside this repository (so ..\..\ProteoWizard\pwiz\pwiz-sharp exists) or pass -p:PwizSharpDir=&lt;path&gt;." />
+  </Target>
+
+  <ItemGroup Condition="'$(GlimpseReaders)' == 'Bundled'">
+    <ProjectReference Include="$(PwizMsDataProject)" />
+    <!-- Thermo only for now (plus mzML / mzXML / mz5 from MsData itself). Other vendors are one line
+         each; see Skyline-PRISM's SkylinePrism.Pwiz.csproj for what each one costs to carry. -->
+    <ProjectReference Include="$(PwizThermoProject)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Glimpse.Core\Glimpse.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Glimpse.Tests" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,23 @@
+{
+  "stryker-config": {
+    "test-projects": [
+      "Glimpse.Tests.csproj"
+    ],
+    "coverage-analysis": "perTest",
+    "reporters": [
+      "html",
+      "json",
+      "progress",
+      "cleartext"
+    ],
+    "thresholds": {
+      "high": 85,
+      "low": 70,
+      "break": 0
+    },
+    "concurrency": 8,
+    "mutate": [
+      "!**/obj/**"
+    ]
+  }
+}

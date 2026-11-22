@@ -1,0 +1,38 @@
+<Project DefaultTargets="Pack">
+
+  <!--
+    Publish the WPF app framework-dependent (the user installs the .NET 10 Desktop Runtime) and zip
+    the output, tool-inf manifest included, into publish\SkylineGlimpse.zip: a drop-in Skyline
+    external tool (Tools > External Tools > Add > From File, or the Tool Store's install-from-file).
+
+      dotnet msbuild build/package.proj
+      dotnet msbuild build/package.proj /p:Configuration=Debug
+
+    Use build\package-and-verify.ps1 rather than this directly: it tests first and launch-verifies after.
+  -->
+  <PropertyGroup>
+    <AppProject>$(MSBuildThisFileDirectory)..\src\Glimpse.App\Glimpse.App.csproj</AppProject>
+    <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishDir>$(MSBuildThisFileDirectory)staging\</PublishDir>
+    <ZipDir>$(MSBuildThisFileDirectory)..\publish\</ZipDir>
+    <ZipPath>$(ZipDir)SkylineGlimpse.zip</ZipPath>
+  </PropertyGroup>
+
+  <Import Project="..\Pwiz.props" />
+
+  <Target Name="RequirePwiz" BeforeTargets="Pack" Condition="'$(PwizAvailable)' != 'true'">
+    <Error Text="No pwiz-sharp checkout at $(PwizSharpDir); the packaged tool could not read instrument files. Clone ProteoWizard/pwiz beside this repository or pass -p:PwizSharpDir." />
+  </Target>
+
+  <Target Name="Pack">
+    <RemoveDir Directories="$(PublishDir)" />
+    <MakeDir Directories="$(PublishDir);$(ZipDir)" />
+    <!-- PublishDir stays LAST: its trailing backslash would otherwise escape the closing quote. -->
+    <Exec Command="dotnet publish &quot;$(AppProject)&quot; -c $(Configuration) -r $(RuntimeIdentifier) --self-contained false /p:UseAppHost=true /p:PwizSharpDir=&quot;$(PwizSharpDir)&quot; /p:IAgreeToVendorLicenses=true /p:PublishDir=&quot;$(PublishDir)&quot;" />
+    <Delete Files="$(ZipPath)" Condition="Exists('$(ZipPath)')" />
+    <ZipDirectory SourceDirectory="$(PublishDir)" DestinationFile="$(ZipPath)" />
+    <Message Importance="high" Text="Packaged $(ZipPath)" />
+  </Target>
+
+</Project>
