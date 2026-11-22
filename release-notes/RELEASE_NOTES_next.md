@@ -7,8 +7,12 @@ One-sentence summary of the release (written at release time).
 - The peptides-per-spectrum heatmap is drawn on a linear scale, as in Skyline-PRISM: it counts a few to a few
   tens of peptides, which a log scale only compressed. Log scale now applies to the intensity heatmap only, and
   is greyed out for the other values.
-- Heatmaps use the Turbo color scale (Skyline-PRISM's high-contrast option) instead of Viridis, so sparse
-  peptide counts and faint signal stand out.
+- The peptides-per-spectrum and assigned-fraction heatmaps use the Turbo color scale (Skyline-PRISM's
+  high-contrast option), so sparse values stand out.
+- The intensity heatmap is linear by default, in Viridis, with the top of its color scale at the 90th
+  percentile of the cells with signal: the brightest 10% saturate instead of leaving the rest dark. Log scale
+  is still available. Color bar labels are capitalized and simpler ("Intensity (Log10)", "Peptides per
+  spectrum", "Fraction of signal assigned").
 
 ## Bug Fixes
 
