@@ -82,8 +82,13 @@ public partial class MainWindow
         var units = Units;
         var xics = BuildXicTraces(units);
         var hasXics = xics.Count > 0;
-        // One intensity axis for everything: an XIC is shown as the part of the TIC it is.
+        // One intensity axis for everything, so an XIC is shown as the part of the TIC it is; or, with
+        // "Scale XICs separately", the XICs on their own axis on the right (a peptide's fragments are a
+        // millionth of an MS1 TIC and lie flat on a shared axis).
         var runAxis = plot.Axes.Left;
+        var hasRunTraces = TicCheck.IsChecked == true || BpcCheck.IsChecked == true
+            || (AssignedCheck.IsChecked == true && _run.Signals is not null);
+        var separateXicAxis = hasXics && hasRunTraces && XicSeparateCheck.IsChecked == true;
 
         if (TicCheck.IsChecked == true)
             AddTrace(plot, RunChromatogram.Build(_run.Index, RunTraceKind.Tic, filter, units), Colors.Black, runAxis, hasXics);
@@ -100,14 +105,16 @@ public partial class MainWindow
             var lines = xics.Select(x => new TraceLine(x.Times, x.Values, ColorFor(x.Owner), x.Name, x.Owner)).ToList();
             _xicPlottable = new MultiTracePlottable(lines) { LineWidth = FigureStyle.XicWidth(lines.Count) };
             plot.Add.Plottable(_xicPlottable);
+            if (separateXicAxis)
+                _xicPlottable.Axes.YAxis = plot.Axes.Right;
             ChromHoverText.Text = $"{lines.Count:N0} XIC trace{(lines.Count == 1 ? "" : "s")}";
         }
         else
         {
             ChromHoverText.Text = "";
         }
-        plot.Axes.Right.Label.Text = "";
-        plot.Axes.Right.IsVisible = false;
+        plot.Axes.Right.Label.Text = separateXicAxis ? "XIC " + IntensityConversion.Label(units).ToLowerInvariant() : "";
+        plot.Axes.Right.IsVisible = separateXicAxis;
 
         plot.Axes.Left.Label.Text = IntensityConversion.Label(units);
         plot.Legend.IsVisible = plot.GetPlottables().Count(p => p is not MultiTracePlottable) > 1;
@@ -130,6 +137,8 @@ public partial class MainWindow
                 plot.Axes.SetLimitsX(rtFirst, rtLast);
             }
             plot.Axes.SetLimitsY(0, plot.Axes.GetLimits(plot.Axes.Bottom, plot.Axes.Left).Top, plot.Axes.Left);
+            if (separateXicAxis)
+                plot.Axes.SetLimitsY(0, plot.Axes.GetLimits(plot.Axes.Bottom, plot.Axes.Right).Top, plot.Axes.Right);
         }
         if (_currentScan >= 0)
             MarkChromatogram(_run.Index[_currentScan].RetentionTime);

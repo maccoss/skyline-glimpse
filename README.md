@@ -30,6 +30,9 @@ file and spectrum.*
 - **Integrated peaks.** With *Integrated only* on (the default), each XIC is drawn only between
   Skyline's integration boundaries in this file, so the trace is the peak Skyline integrated. Clear it
   to see the minute around each peak as well.
+- **One intensity axis.** The TIC, base peak, assigned signal and XICs share one axis, so an XIC shows
+  as the fraction of the TIC it is. A peptide's fragment XIC is often a millionth of an MS1 TIC; tick
+  *Scale XICs separately* to give the XICs their own axis on the right.
 - **Click a peptide's trace** to open the spectrum at that point, with that peptide in focus.
 
 ![Per-peptide XICs of eight selected peptides, and the MS2 spectrum opened by clicking one of them](docs/images/xic-per-peptide-ms2.png)

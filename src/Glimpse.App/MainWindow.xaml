@@ -132,7 +132,7 @@
                 <TabControl x:Name="TopTabs" Grid.Row="0" SelectionChanged="OnTopTabChanged">
                     <TabItem Header="Chromatogram">
                         <DockPanel>
-                            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="2">
+                            <WrapPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="2">
                                 <CheckBox x:Name="TicCheck" Content="TIC" IsChecked="True" Margin="4,0" VerticalAlignment="Center"
                                           Checked="OnViewOptionChanged" Unchecked="OnViewOptionChanged" />
                                 <CheckBox x:Name="BpcCheck" Content="Base peak" Margin="4,0" VerticalAlignment="Center"
@@ -156,12 +156,15 @@
                                     <ComboBoxItem Content="MS2 fragments" />
                                     <ComboBoxItem Content="MS1 precursor" />
                                 </ComboBox>
+                                <CheckBox x:Name="XicSeparateCheck" Content="Scale XICs separately" Margin="8,0,4,0" VerticalAlignment="Center"
+                                          Checked="OnViewOptionChanged" Unchecked="OnViewOptionChanged"
+                                          ToolTip="Give the XICs their own intensity axis on the right, scaled to the largest XIC; otherwise they share the TIC's axis" />
                                 <CheckBox x:Name="IntegratedOnlyCheck" Content="Integrated only" IsChecked="True" Margin="8,0,4,0" VerticalAlignment="Center"
                                           Checked="OnViewOptionChanged" Unchecked="OnViewOptionChanged"
                                           ToolTip="Draw each XIC only between Skyline's integration boundaries; clear it to see the minute around each peak too" />
                                 <Button Content="Reset zoom" Margin="12,0,0,0" Padding="6,0" Click="OnResetChromZoom" ToolTip="Show the whole plot again (or double-click or middle-click the plot)" />
                                 <TextBlock x:Name="ChromHoverText" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="Gray" />
-                            </StackPanel>
+                            </WrapPanel>
                             <sp:WpfPlot x:Name="ChromPlot" />
                         </DockPanel>
                     </TabItem>
