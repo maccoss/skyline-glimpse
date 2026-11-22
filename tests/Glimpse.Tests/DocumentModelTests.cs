@@ -59,7 +59,6 @@ public class DocumentModelTests
         var ms2 = Header(2, rt: 10.5, lower: 464, upper: 467);
         Assert.Single(candidates.Find(ms2, "run1.raw", CandidateOptions.Default));
         Assert.Empty(candidates.Find(Header(2, rt: 12, lower: 464, upper: 467), "run1.raw", CandidateOptions.Default));
-        Assert.Single(candidates.Find(Header(2, rt: 12, lower: 464, upper: 467), "run1.raw", new CandidateOptions { IgnoreRetentionTime = true }));
         Assert.Single(candidates.Find(Header(1, rt: 20.1), "run1.raw", CandidateOptions.Default));
         Assert.Empty(candidates.Find(ms2, "other.raw", CandidateOptions.Default));
     }

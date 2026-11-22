@@ -9,12 +9,6 @@ public sealed record CandidateOptions
     /// <summary>Widen each integrated peak by this many minutes on both sides.</summary>
     public double ExtendMinutes { get; init; }
 
-    /// <summary>
-    /// Ignore retention time: every precursor whose m/z falls in an MS2 scan's isolation window (or, for
-    /// MS1, every precursor) is a candidate. For exploring what could be in a spectrum.
-    /// </summary>
-    public bool IgnoreRetentionTime { get; init; }
-
     public static CandidateOptions Default { get; } = new();
 }
 
@@ -50,11 +44,6 @@ public sealed class SpectrumCandidates
         for (var i = from; i < to; i++)
         {
             var p = _byMz[i];
-            if (options.IgnoreRetentionTime)
-            {
-                result.Add(p);
-                continue;
-            }
             if (p.Peaks.TryGetValue(fileName, out var peak) && peak.Contains(scan.RetentionTime, options.ExtendMinutes))
                 result.Add(p);
         }

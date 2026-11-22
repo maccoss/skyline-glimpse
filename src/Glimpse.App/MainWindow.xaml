@@ -214,9 +214,6 @@
                         <CheckBox x:Name="DuplicatesCheck" Content="Duplicates" Margin="6,0" VerticalAlignment="Center"
                                   Checked="OnLabelOptionChanged" Unchecked="OnLabelOptionChanged"
                                   ToolTip="Show every ion a shared peak matches, not just the first" />
-                        <CheckBox x:Name="IgnoreRtCheck" Content="Ignore RT" Margin="6,0" VerticalAlignment="Center"
-                                  Checked="OnLabelOptionChanged" Unchecked="OnLabelOptionChanged"
-                                  ToolTip="Consider every document precursor whose m/z is in the isolation window, not just those inside their integrated peak" />
                         <Button Content="Reset zoom" Margin="12,0,0,0" Padding="6,0" Click="OnResetSpectrumZoom" ToolTip="Show the whole plot again (or double-click or middle-click the plot)" />
                     </StackPanel>
                     <DockPanel DockPanel.Dock="Top" Margin="2">

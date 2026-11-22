@@ -471,13 +471,12 @@ public class BoundaryTests
     }
 
     [Fact]
-    public void IgnoreRtListsEachPrecursorOnce()
+    public void APrecursorIsACandidateInsideItsPeakOrItsExtension()
     {
         var protein = new DocProtein("P", null, null, null);
         var p = Docs.Precursor(protein, "AK", 2, 405.0, "run1.raw", 0, 5, ("y2", 1, 300.0));
         var candidates = new SpectrumCandidates(new[] { p });
         var scan = FakeSource.Spectrum(0, 2, 1, Array.Empty<double>(), Array.Empty<double>(), 1, 400, 410).Header;
-        Assert.Single(candidates.Find(scan, "run1.raw", new CandidateOptions { IgnoreRetentionTime = true }));
         Assert.Single(candidates.Find(scan, "run1.raw", new CandidateOptions { ExtendMinutes = 0 }));
         var outside = FakeSource.Spectrum(0, 2, 6, Array.Empty<double>(), Array.Empty<double>(), 1, 400, 410).Header;
         Assert.Single(candidates.Find(outside, "run1.raw", new CandidateOptions { ExtendMinutes = 1 }));

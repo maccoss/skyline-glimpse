@@ -444,11 +444,11 @@ public partial class MainWindow
     }
 
     /// <summary>The document precursors in the given spectrum, or empty when there is no document or no match.</summary>
-    private IReadOnlyList<DocPrecursor> CandidatesFor(Core.Data.SpectrumData spectrum, bool ignoreRt)
+    private IReadOnlyList<DocPrecursor> CandidatesFor(Core.Data.SpectrumData spectrum)
     {
         var file = CurrentResultFileName();
-        if (_candidates is null || (file is null && !ignoreRt))
+        if (_candidates is null || file is null)
             return Array.Empty<DocPrecursor>();
-        return _candidates.Find(spectrum.Header, file ?? "", new CandidateOptions { IgnoreRetentionTime = ignoreRt });
+        return _candidates.Find(spectrum.Header, file, CandidateOptions.Default);
     }
 }

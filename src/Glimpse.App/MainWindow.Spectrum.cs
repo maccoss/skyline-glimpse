@@ -153,7 +153,6 @@ public partial class MainWindow
         MarkHeatmap(rt);
 
         var options = CurrentLabelOptions();
-        var ignoreRt = IgnoreRtCheck.IsChecked == true && run.Index[scan].MsLevel >= 2;
         var settings = _settings;
         var library = _library;
         var forced = _forcedPeptide;
@@ -164,7 +163,7 @@ public partial class MainWindow
             (spectrum, annotation) = await Task.Run(() =>
             {
                 var s = run.ReadSpectrum(scan);
-                var candidates = CandidatesFor(s, ignoreRt);
+                var candidates = CandidatesFor(s);
                 if (forced is not null)
                 {
                     var extra = forced.Precursors.Where(p => s.Header.MsLevel < 2 || s.Header.IsolationContains(p.Mz)).Except(candidates).ToList();

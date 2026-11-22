@@ -94,8 +94,7 @@ window). Click any cell to open that spectrum. Three values can be shown:
   to focus it and dim the rest.
 - **Choose what is labeled**, as in Skyline's spectrum graph: the document's transitions, the ions
   found in the library spectrum, or all ions of the chosen types (a, b, c, x, y, z) and charges. You can
-  also show m/z values, show every ion on a shared peak, or ignore retention time to see what could be
-  in an MS2 window.
+  also show m/z values, or show every ion on a shared peak.
 - **Step through scans** with the arrow keys.
 
 ![Zoomed MS1 spectrum: precursor isotope peaks labeled with peptide, charge and isotope](docs/images/spectrum-ms1-labels.png)
