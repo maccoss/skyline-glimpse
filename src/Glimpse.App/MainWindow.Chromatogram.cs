@@ -84,10 +84,8 @@ public partial class MainWindow
             AddTrace(plot, RunChromatogram.Build(_run.Index, RunTraceKind.BasePeak, filter, units), Colors.SteelBlue, runAxis, hasXics);
         if (AssignedCheck.IsChecked == true && _run.Signals is { } signals)
         {
-            var (assigned, unassigned) = AssignedTraces(signals, filter, units);
-            // Unassigned first: the assigned part is often the smaller trace and must not be hidden.
-            AddTrace(plot, unassigned, Colors.IndianRed, runAxis, hasXics);
-            AddTrace(plot, assigned, Colors.SeaGreen, runAxis, hasXics);
+            // Drawn over the TIC: total and assigned side by side, the gap between them unassigned.
+            AddTrace(plot, AssignedTrace(signals, filter, units), Colors.SeaGreen, runAxis, hasXics);
         }
 
         if (hasXics)
@@ -166,21 +164,17 @@ public partial class MainWindow
         _ => Colors.DarkOrange,
     };
 
-    /// <summary>Per scan of the filter: the signal document peptides claim, and the rest.</summary>
-    private (Trace Assigned, Trace Unassigned) AssignedTraces(Core.Assignment.DocumentSignals signals, ScanFilter filter, IntensityUnits units)
+    /// <summary>Per scan of the filter: the signal document peptides claim.</summary>
+    private Trace AssignedTrace(Core.Assignment.DocumentSignals signals, ScanFilter filter, IntensityUnits units)
     {
         var tic = RunChromatogram.Build(_run!.Index, RunTraceKind.Tic, filter, units);
         var assigned = new double[tic.Count];
-        var unassigned = new double[tic.Count];
         for (var i = 0; i < tic.Count; i++)
         {
             var h = _run.Index[tic.ScanIndices[i]];
-            var a = IntensityConversion.Convert(signals.AssignedIntensity[h.Index], h.InjectionTimeMs, units);
-            assigned[i] = a;
-            unassigned[i] = tic.Values[i] - a;
+            assigned[i] = IntensityConversion.Convert(signals.AssignedIntensity[h.Index], h.InjectionTimeMs, units);
         }
-        return (new Trace($"Assigned ({filter.Describe()})", tic.Times, assigned, tic.ScanIndices),
-            new Trace($"Unassigned ({filter.Describe()})", tic.Times, unassigned, tic.ScanIndices));
+        return new Trace($"Assigned ({filter.Describe()})", tic.Times, assigned, tic.ScanIndices);
     }
 
     private static void AddTrace(Plot plot, Trace trace, Color color, IYAxis axis, bool dimmed)

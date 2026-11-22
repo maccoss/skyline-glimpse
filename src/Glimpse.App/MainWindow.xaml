@@ -125,7 +125,7 @@
                                           ToolTip="Which spectra the chromatogram sums: all, MS1, MS2, or one isolation window" />
                                 <CheckBox x:Name="AssignedCheck" Content="Assigned" Margin="12,0,4,0" VerticalAlignment="Center"
                                           Checked="OnViewOptionChanged" Unchecked="OnViewOptionChanged"
-                                          ToolTip="Signal in each scan that belongs to document peptides (each peak counted once), and the rest" />
+                                          ToolTip="Signal in each scan that belongs to document peptides (each peak counted once)" />
                                 <TextBlock Text="XIC:" Margin="12,0,4,0" VerticalAlignment="Center" />
                                 <ComboBox x:Name="XicModeCombo" Width="110" SelectedIndex="0" SelectionChanged="OnViewOptionChanged"
                                           ToolTip="XICs of the selected peptides: none, one summed trace, one per protein, or one per peptide (no limit)">
