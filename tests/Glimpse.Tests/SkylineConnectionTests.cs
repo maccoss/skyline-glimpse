@@ -92,9 +92,17 @@ internal sealed class FakeSkylineServer : IDisposable
                 }
             }
             var bytes = Encoding.UTF8.GetBytes(response);
-            pipe.Write(bytes, 0, bytes.Length);
-            pipe.Flush();
-            pipe.WaitForPipeDrain();
+            try
+            {
+                pipe.Write(bytes, 0, bytes.Length);
+                pipe.Flush();
+                pipe.WaitForPipeDrain();
+            }
+            catch (IOException)
+            {
+                // The client gave up while the handler ran (a request Glimpse abandoned after its timeout):
+                // nobody is left to answer, and throwing would end the server thread and crash the test host.
+            }
             // Skyline closes the pipe after each request; so does this.
         }
     }
@@ -154,6 +162,35 @@ public sealed class SkylineConnectionTests : IDisposable
         var skyline = SkylineConnection.FromArguments(new[] { server.RawName })!;
         Assert.Equal("Skyline-daily 26.1", skyline.GetVersion());
         Assert.Equal(1, server.Connections);
+    }
+
+    [Fact]
+    public void TheFakeServerOutlivesAClientThatLeavesBeforeItsAnswer()
+    {
+        using var handlerStarted = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        using var server = new FakeSkylineServer((method, _) =>
+        {
+            if (method == "GetDocumentPath")
+            {
+                handlerStarted.Set();
+                release.Wait(TimeSpan.FromSeconds(30));
+            }
+            return "Skyline-daily 26.1";
+        });
+        using (var leaver = new NamedPipeClientStream(".", server.PipeName, PipeDirection.InOut))
+        {
+            leaver.Connect(5000);
+            leaver.ReadMode = PipeTransmissionMode.Message;
+            var request = Encoding.UTF8.GetBytes("{\"jsonrpc\":\"2.0\",\"method\":\"GetDocumentPath\",\"id\":1}");
+            leaver.Write(request, 0, request.Length);
+            Assert.True(handlerStarted.Wait(TimeSpan.FromSeconds(10)));
+        }
+        release.Set();   // the answer now goes to a closed pipe
+
+        var skyline = SkylineConnection.FromArguments(new[] { server.RawName })!;
+        Assert.Equal("Skyline-daily 26.1", skyline.GetVersion());
+        Assert.Equal(2, server.Connections);
     }
 
     [Fact]

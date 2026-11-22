@@ -30,6 +30,14 @@ public static class FigureStyle
     /// <summary>XIC line width: heavy for a few traces, hairlines when hundreds overlap and density is the point.</summary>
     public static float XicWidth(int traceCount) => traceCount > 200 ? 1f : traceCount > 20 ? 1.5f : 2.5f;
 
+    /// <summary>
+    /// A heatmap's color scale. Peptide counts and assigned fractions use Turbo, the high-contrast map
+    /// Skyline-PRISM offers for picking out fine structure in sparse values. Intensity keeps Viridis, on a
+    /// linear scale with its brightest cells saturated (see HeatmapScale.IntensitySaturationQuantile).
+    /// </summary>
+    public static IColormap HeatmapColormap(bool intensity) =>
+        intensity ? new ScottPlot.Colormaps.Viridis() : new ScottPlot.Colormaps.Turbo();
+
     /// <summary>The plot size, in device-independent pixels, the sizes above are chosen for.</summary>
     public const double ReferenceWidth = 1000, ReferenceHeight = 400;
 

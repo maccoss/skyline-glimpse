@@ -7,6 +7,48 @@ namespace Glimpse.Tests;
 /// <summary>Exact cell values of the intensity heatmaps on a hand-built run.</summary>
 public class HeatmapTests
 {
+    [Fact]
+    public void TheSaturationQuantileCountsOnlyCellsWithSignal()
+    {
+        // Ten cells with signal, 10 to 100, among empty (0), missing (NaN) and negative cells.
+        var grid = new float[,]
+        {
+            { 0, 90, 20, 100, float.NaN },
+            { 40, 10, 70, -5, 0 },
+            { 30, 80, 60, 50, float.PositiveInfinity },
+        };
+        Assert.Equal(90, HeatmapScale.Quantile(grid, 0.90));    // nearest rank: the 9th of 10
+        Assert.Equal(100, HeatmapScale.Quantile(grid, 0.95));   // rounds up to the 10th
+        Assert.Equal(50, HeatmapScale.Quantile(grid, 0.50));
+        Assert.Equal(10, HeatmapScale.Quantile(grid, 0.0));     // the smallest, not below it
+        Assert.Equal(100, HeatmapScale.Quantile(grid, 1.0));
+        Assert.Equal(10, HeatmapScale.Quantile(grid, -1));      // clamped
+        Assert.Equal(100, HeatmapScale.Quantile(grid, 2));
+        Assert.Equal(double.NaN, HeatmapScale.Quantile(new float[,] { { 0, float.NaN }, { -1, 0 } }, 0.9));
+        Assert.Equal(double.NaN, HeatmapScale.Quantile(new float[0, 0], 0.9));
+        Assert.Equal(7, HeatmapScale.Quantile(new float[,] { { 7 } }, 0.9));
+    }
+
+    [Fact]
+    public void OnlyIntensityIsDrawnOnALogScale()
+    {
+        Assert.True(HeatmapScale.IsLog(HeatmapValue.Intensity, logRequested: true));
+        Assert.False(HeatmapScale.IsLog(HeatmapValue.Intensity, logRequested: false));
+        // Peptides per spectrum (a few to a few tens) and the assigned fraction (0-1) are always linear.
+        Assert.False(HeatmapScale.IsLog(HeatmapValue.PeptidesPerSpectrum, logRequested: true));
+        Assert.False(HeatmapScale.IsLog(HeatmapValue.AssignedFraction, logRequested: true));
+
+        Assert.True(HeatmapScale.OffersLog(HeatmapValue.Intensity));
+        Assert.False(HeatmapScale.OffersLog(HeatmapValue.AssignedFraction));
+        Assert.False(HeatmapScale.OffersLog(HeatmapValue.PeptidesPerSpectrum));
+
+        // A linear intensity map tops its color scale at the 95th percentile of the cells with signal.
+        Assert.Equal(0.95, HeatmapScale.IntensitySaturationQuantile);
+
+        // The enum follows the window's Value list: Intensity, Assigned fraction, Peptides per spectrum.
+        Assert.Equal(new[] { 0, 1, 2 }, new[] { (int)HeatmapValue.Intensity, (int)HeatmapValue.AssignedFraction, (int)HeatmapValue.PeptidesPerSpectrum });
+    }
+
     private static SpectrumData Ms1(double rt, double[] mz, double[] intensity, float it) =>
         FakeSource.Spectrum(0, 1, rt, mz, intensity, it, double.NaN, double.NaN);
 

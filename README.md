@@ -80,13 +80,14 @@ run (intensity zoomed to the bulk of the peaks).*
 m/z by retention time, for MS1 (peaks binned by m/z) or MS2 (each scan's signal across its isolation
 window). Click any cell to open that spectrum. Three values can be shown:
 
-- **Intensity**, on a log scale.
+- **Intensity**, linear with the brightest 5% of cells saturated (so faint signal still shows), or on
+  a log scale.
 
   ![MS1 intensity heatmap](docs/images/heatmap-ms1-intensity.png)
 
 - **Peptides per spectrum** (MS2): how many document precursors are co-isolated in each MS2 scan,
   inside the precursor range Skyline extracts from it (by the document's isolation scheme) and inside
-  their integrated peak at that time. This shows where the method is crowded.
+  their integrated peak at that time, on a linear scale. This shows where the method is crowded.
 
   ![MS2 peptides-per-spectrum heatmap](docs/images/heatmap-ms2-peptides-per-spectrum.png)
 

@@ -10,6 +10,12 @@ public partial class MainWindow
     private ScottPlot.Plottables.VerticalLine? _heatMarker;
     private ScottPlot.Panels.ColorBar? _colorBar;
 
+    /// <summary>
+    /// The saturation level of each intensity grid, worked out once: a grid does not change after the pass,
+    /// and the quantile sorts every cell with signal (about a million on an Astral MS1 map).
+    /// </summary>
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<float[,], object> _saturationLevels = new();
+
     private int HeatLevel => HeatLevelCombo.SelectedIndex == 1 ? 2 : 1;
 
     private void InitHeatmap()
@@ -41,20 +47,20 @@ public partial class MainWindow
         HeatmapGrid grid;
         float[,] values;
         string label;
-        var log = HeatLogCheck.IsChecked == true;
+        var saturation = double.NaN;
+        var log = HeatmapScale.IsLog((HeatmapValue)valueMode, HeatLogCheck.IsChecked == true);
         switch (valueMode)
         {
             case 1 when signals is not null:
                 grid = HeatLevel == 1 ? signals.Ms1Fraction : signals.Ms2Fraction;
                 values = grid.Values;
-                log = false;
-                label = HeatLevel == 1 ? "fraction of binned signal assigned" : "fraction of scan signal assigned";
+                label = "Fraction of signal assigned";
                 break;
             case 2 when signals is not null:
                 // MS2 only (OnHeatValueChanged): the peptides co-isolated in each window.
                 grid = signals.Ms2Count;
                 values = grid.Values;
-                label = (log ? "log10 " : "") + "peptides per spectrum";
+                label = "Peptides per spectrum";
                 break;
             case 1 or 2:
                 plot.Title(_document.Precursors.Count == 0 ? "Needs a Skyline document with results" : "Measuring document signals...");
@@ -63,7 +69,13 @@ public partial class MainWindow
             default:
                 grid = HeatLevel == 1 ? _run.Heatmaps.Ms1 : _run.Heatmaps.Ms2;
                 values = grid.For(Units);
-                label = (log ? "log10 " : "") + (HeatLevel == 1 ? "binned " : "scan ") + (Units == Core.Data.IntensityUnits.Ions ? "ions" : "intensity");
+                label = (Units == Core.Data.IntensityUnits.Ions ? "Ions" : "Intensity") + (log ? " (Log10)" : "");
+                if (!log)
+                {
+                    // Linear: the top color at a high quantile, so a few huge peaks do not leave the rest dark.
+                    saturation = (double)_saturationLevels.GetValue(values,
+                        g => HeatmapScale.Quantile(g, HeatmapScale.IntensitySaturationQuantile));
+                }
                 break;
         }
         if (grid.IsEmpty)
@@ -74,11 +86,14 @@ public partial class MainWindow
         }
 
         var heat = plot.Add.Heatmap(ToDisplay(values, log));
-        heat.Colormap = new ScottPlot.Colormaps.Viridis();
+        heat.Colormap = Glimpse.Plotting.FigureStyle.HeatmapColormap(intensity: valueMode == (int)HeatmapValue.Intensity);
+        if (saturation > 0)
+            heat.ManualRange = new ScottPlot.Range(0, saturation);
         heat.NaNCellColor = Colors.Transparent;
         heat.Extent = new CoordinateRect(left: grid.RtLow, right: grid.RtHigh, bottom: grid.MzLow, top: grid.MzHigh);
         _colorBar = plot.Add.ColorBar(heat);
         Glimpse.Plotting.FigureStyle.StyleAxis(_colorBar.Axis);
+        _colorBar.Axis.TickGenerator = new ScottPlot.TickGenerators.NumericAutomatic { LabelFormatter = Glimpse.Plotting.FigureStyle.TickLabel };
         _colorBar.Label = label;
         plot.Title("");
         plot.Axes.Left.Label.Text = HeatLevel == 1 ? "m/z" : "Isolation window m/z";
@@ -114,10 +129,13 @@ public partial class MainWindow
 
     /// <summary>
     /// Peptides per spectrum is an MS2 measure, the peptides co-isolated in each window, so choosing it
-    /// moves the level to MS2 and greys out MS1; any other value makes MS1 available again.
+    /// moves the level to MS2 and greys out MS1; any other value makes MS1 available again. Only intensity
+    /// is drawn on a log scale, so the Log scale box is greyed out for the others.
     /// </summary>
     private void OnHeatValueChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
+        if (HeatLogCheck is not null)
+            HeatLogCheck.IsEnabled = HeatmapScale.OffersLog((HeatmapValue)Math.Max(0, HeatValueCombo.SelectedIndex));
         var peptidesPerSpectrum = HeatValueCombo.SelectedIndex == 2;
         HeatMs1Item.IsEnabled = !peptidesPerSpectrum;
         if (peptidesPerSpectrum && HeatLevelCombo.SelectedIndex != 1)
