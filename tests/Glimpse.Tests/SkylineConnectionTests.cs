@@ -49,16 +49,28 @@ internal sealed class FakeSkylineServer : IDisposable
             {
                 return;
             }
-            Connections++;
             using var ms = new MemoryStream();
             var buffer = new byte[65536];
-            do
+            try
             {
-                var n = pipe.Read(buffer, 0, buffer.Length);
-                if (n == 0)
-                    break;
-                ms.Write(buffer, 0, n);
-            } while (!pipe.IsMessageComplete);
+                do
+                {
+                    var n = pipe.Read(buffer, 0, buffer.Length);
+                    if (n == 0)
+                        break;
+                    ms.Write(buffer, 0, n);
+                } while (!pipe.IsMessageComplete);
+            }
+            catch (IOException)
+            {
+                // The client went away mid-request.
+            }
+            // A client that gave up (a request Glimpse abandoned after its timeout) can connect late and close
+            // without sending anything: there is nothing to answer, and throwing here would end the server
+            // thread and crash the test host.
+            if (ms.Length == 0)
+                continue;
+            Connections++;
 
             string response;
             using (var request = JsonDocument.Parse(ms.ToArray()))
@@ -131,6 +143,17 @@ public sealed class SkylineConnectionTests : IDisposable
         Assert.Equal(4242, skyline.GetProcessId());
         Assert.Equal(3, server.Connections);
         Assert.Throws<JsonRpcException>(() => skyline.Call(c => c.GetSelectionText()));
+    }
+
+    [Fact]
+    public void TheFakeServerOutlivesAClientThatConnectsAndSendsNothing()
+    {
+        using var server = new FakeSkylineServer((_, _) => "Skyline-daily 26.1");
+        using (var quitter = new NamedPipeClientStream(".", server.PipeName, PipeDirection.InOut))
+            quitter.Connect(5000);
+        var skyline = SkylineConnection.FromArguments(new[] { server.RawName })!;
+        Assert.Equal("Skyline-daily 26.1", skyline.GetVersion());
+        Assert.Equal(1, server.Connections);
     }
 
     [Fact]
