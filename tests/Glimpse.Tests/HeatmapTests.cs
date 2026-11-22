@@ -8,6 +8,28 @@ namespace Glimpse.Tests;
 public class HeatmapTests
 {
     [Fact]
+    public void TheSaturationQuantileCountsOnlyCellsWithSignal()
+    {
+        // Ten cells with signal, 10 to 100, among empty (0), missing (NaN) and negative cells.
+        var grid = new float[,]
+        {
+            { 0, 10, 20, 30, float.NaN },
+            { 40, 50, 60, -5, 0 },
+            { 70, 80, 90, 100, float.PositiveInfinity },
+        };
+        Assert.Equal(90, HeatmapScale.Quantile(grid, 0.90));    // nearest rank: the 9th of 10
+        Assert.Equal(100, HeatmapScale.Quantile(grid, 0.95));   // rounds up to the 10th
+        Assert.Equal(50, HeatmapScale.Quantile(grid, 0.50));
+        Assert.Equal(10, HeatmapScale.Quantile(grid, 0.0));     // the smallest, not below it
+        Assert.Equal(100, HeatmapScale.Quantile(grid, 1.0));
+        Assert.Equal(10, HeatmapScale.Quantile(grid, -1));      // clamped
+        Assert.Equal(100, HeatmapScale.Quantile(grid, 2));
+        Assert.Equal(double.NaN, HeatmapScale.Quantile(new float[,] { { 0, float.NaN }, { -1, 0 } }, 0.9));
+        Assert.Equal(double.NaN, HeatmapScale.Quantile(new float[0, 0], 0.9));
+        Assert.Equal(7, HeatmapScale.Quantile(new float[,] { { 7 } }, 0.9));
+    }
+
+    [Fact]
     public void OnlyIntensityIsDrawnOnALogScale()
     {
         Assert.True(HeatmapScale.IsLog(HeatmapValue.Intensity, logRequested: true));
@@ -19,6 +41,9 @@ public class HeatmapTests
         Assert.True(HeatmapScale.OffersLog(HeatmapValue.Intensity));
         Assert.False(HeatmapScale.OffersLog(HeatmapValue.AssignedFraction));
         Assert.False(HeatmapScale.OffersLog(HeatmapValue.PeptidesPerSpectrum));
+
+        // A linear intensity map tops its color scale at the 90th percentile of the cells with signal.
+        Assert.Equal(0.90, HeatmapScale.IntensitySaturationQuantile);
 
         // The enum follows the window's Value list: Intensity, Assigned fraction, Peptides per spectrum.
         Assert.Equal(new[] { 0, 1, 2 }, new[] { (int)HeatmapValue.Intensity, (int)HeatmapValue.AssignedFraction, (int)HeatmapValue.PeptidesPerSpectrum });

@@ -41,13 +41,14 @@ public partial class MainWindow
         HeatmapGrid grid;
         float[,] values;
         string label;
+        var saturation = double.NaN;
         var log = HeatmapScale.IsLog((HeatmapValue)valueMode, HeatLogCheck.IsChecked == true);
         switch (valueMode)
         {
             case 1 when signals is not null:
                 grid = HeatLevel == 1 ? signals.Ms1Fraction : signals.Ms2Fraction;
                 values = grid.Values;
-                label = HeatLevel == 1 ? "Fraction of binned signal assigned" : "Fraction of scan signal assigned";
+                label = "Fraction of signal assigned";
                 break;
             case 2 when signals is not null:
                 // MS2 only (OnHeatValueChanged): the peptides co-isolated in each window.
@@ -62,8 +63,14 @@ public partial class MainWindow
             default:
                 grid = HeatLevel == 1 ? _run.Heatmaps.Ms1 : _run.Heatmaps.Ms2;
                 values = grid.For(Units);
-                label = (log ? "Log10 " : "") + (HeatLevel == 1 ? "binned " : "scan ") + (Units == Core.Data.IntensityUnits.Ions ? "ions" : "intensity");
-                label = char.ToUpperInvariant(label[0]) + label[1..];
+                label = (Units == Core.Data.IntensityUnits.Ions ? "Ions" : "Intensity") + (log ? " (Log10)" : "");
+                if (!log)
+                {
+                    // Linear: the top color at a high quantile, so a few huge peaks do not leave the rest dark.
+                    saturation = HeatmapScale.Quantile(values, HeatmapScale.IntensitySaturationQuantile);
+                    var brightest = (1 - HeatmapScale.IntensitySaturationQuantile) * 100;
+                    label += $" (top {brightest.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}% saturated)";
+                }
                 break;
         }
         if (grid.IsEmpty)
@@ -74,11 +81,14 @@ public partial class MainWindow
         }
 
         var heat = plot.Add.Heatmap(ToDisplay(values, log));
-        heat.Colormap = Glimpse.Plotting.FigureStyle.HeatmapColormap();
+        heat.Colormap = Glimpse.Plotting.FigureStyle.HeatmapColormap(intensity: valueMode == (int)HeatmapValue.Intensity);
+        if (saturation > 0)
+            heat.ManualRange = new ScottPlot.Range(0, saturation);
         heat.NaNCellColor = Colors.Transparent;
         heat.Extent = new CoordinateRect(left: grid.RtLow, right: grid.RtHigh, bottom: grid.MzLow, top: grid.MzHigh);
         _colorBar = plot.Add.ColorBar(heat);
         Glimpse.Plotting.FigureStyle.StyleAxis(_colorBar.Axis);
+        _colorBar.Axis.TickGenerator = new ScottPlot.TickGenerators.NumericAutomatic { LabelFormatter = Glimpse.Plotting.FigureStyle.TickLabel };
         _colorBar.Label = label;
         plot.Title("");
         plot.Axes.Left.Label.Text = HeatLevel == 1 ? "m/z" : "Isolation window m/z";

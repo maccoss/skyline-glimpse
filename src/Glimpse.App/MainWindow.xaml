@@ -183,7 +183,7 @@
                                     <ComboBoxItem Content="Assigned fraction" />
                                     <ComboBoxItem Content="Peptides per spectrum" />
                                 </ComboBox>
-                                <CheckBox x:Name="HeatLogCheck" Content="Log scale" IsChecked="True" Margin="12,0" VerticalAlignment="Center"
+                                <CheckBox x:Name="HeatLogCheck" Content="Log scale" IsChecked="False" Margin="12,0" VerticalAlignment="Center"
                                           Checked="OnViewOptionChanged" Unchecked="OnViewOptionChanged" />
                                 <Button Content="Reset zoom" Margin="12,0,0,0" Padding="6,0" Click="OnResetHeatZoom" ToolTip="Show the whole plot again (or double-click or middle-click the plot)" />
                             </StackPanel>

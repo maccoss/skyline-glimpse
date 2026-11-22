@@ -31,10 +31,12 @@ public static class FigureStyle
     public static float XicWidth(int traceCount) => traceCount > 200 ? 1f : traceCount > 20 ? 1.5f : 2.5f;
 
     /// <summary>
-    /// The heatmaps' color scale: Turbo, the high-contrast map Skyline-PRISM offers for picking out fine
-    /// structure. Sparse peptide counts and faint intensity show up better in it than in Viridis.
+    /// A heatmap's color scale. Peptide counts and assigned fractions use Turbo, the high-contrast map
+    /// Skyline-PRISM offers for picking out fine structure in sparse values. Intensity keeps Viridis, on a
+    /// linear scale with its brightest cells saturated (see HeatmapScale.IntensitySaturationQuantile).
     /// </summary>
-    public static IColormap HeatmapColormap() => new ScottPlot.Colormaps.Turbo();
+    public static IColormap HeatmapColormap(bool intensity) =>
+        intensity ? new ScottPlot.Colormaps.Viridis() : new ScottPlot.Colormaps.Turbo();
 
     public static void Apply(Plot plot, string xLabel, string yLabel)
     {

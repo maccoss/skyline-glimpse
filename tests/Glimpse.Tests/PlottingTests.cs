@@ -199,7 +199,8 @@ public class FigureStyleTests
         Assert.Equal(1.5f, FigureStyle.XicWidth(21));
         Assert.Equal(1.5f, FigureStyle.XicWidth(200));
         Assert.Equal(1f, FigureStyle.XicWidth(201));
-        Assert.IsType<ScottPlot.Colormaps.Turbo>(FigureStyle.HeatmapColormap());
+        Assert.IsType<ScottPlot.Colormaps.Viridis>(FigureStyle.HeatmapColormap(intensity: true));
+        Assert.IsType<ScottPlot.Colormaps.Turbo>(FigureStyle.HeatmapColormap(intensity: false));
         Assert.Equal(2f, FigureStyle.TraceWidth);
 
         var sticks = new StickPlottable(new[] { 100.0 }, new[] { 1.0 });
