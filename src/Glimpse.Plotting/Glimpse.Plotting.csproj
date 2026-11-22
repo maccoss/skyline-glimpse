@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- ScottPlot plottables and plot logic with no WPF dependency, so tests can render and inspect them. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Glimpse.Plotting</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ScottPlot" Version="5.1.59" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Glimpse.Core\Glimpse.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Glimpse.Tests" />
+  </ItemGroup>
+
+</Project>

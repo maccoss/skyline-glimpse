@@ -1,0 +1,22 @@
+<Project>
+
+  <PropertyGroup>
+    <!-- Lets Windows-targeted projects (net10.0-windows, WPF) build on non-Windows hosts. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+
+    <!-- CalVer YY.feature.patch, the Skyline-PRISM scheme (see "Releases" in CLAUDE.md): bumped only at
+         release time. The Skyline tool manifest (src/Glimpse.App/tool-inf/info.properties) carries the
+         same number; VersionTests and build/package-and-verify.ps1 fail when the two differ. -->
+    <Version>26.1.0</Version>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <!-- Do NOT set InvariantGlobalization=true: WPF text rendering needs real cultures, and the Thermo
+         SDK constructs CultureInfo("en-US") itself. Use CultureInfo.InvariantCulture explicitly in
+         every parse/format path instead. -->
+  </PropertyGroup>
+
+</Project>

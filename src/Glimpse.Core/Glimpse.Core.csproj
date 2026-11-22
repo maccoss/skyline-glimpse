@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Pure logic, no UI, no pwiz types: data abstractions, scan index, chemistry, assignment. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Glimpse.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Glimpse.Tests" />
+  </ItemGroup>
+
+</Project>

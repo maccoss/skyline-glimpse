@@ -1,0 +1,7 @@
+# Applied by MSBuild to every build launched under this directory (dotnet build/test/publish).
+#
+# The Thermo reader in pwiz-sharp is license-gated: without this flag its encrypted SDK archive is not
+# extracted and the reader compiles to a stub that cannot open a .raw file. It must be a GLOBAL
+# property (not one set in a .props file) so it reaches the pwiz-sharp projects Glimpse references.
+# By building Glimpse you accept the vendor license terms in pwiz-sharp/vendor-archives.
+-p:IAgreeToVendorLicenses=true

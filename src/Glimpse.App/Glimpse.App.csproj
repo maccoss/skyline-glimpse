@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- The WinExe Skyline launches as an external tool. AssemblyName must match Command in
+         tool-inf/SkylineGlimpse.properties.
+         Platform version 10.0.19041: ScottPlot.WPF brings SkiaSharp.Views.WPF, whose modern assets
+         target net8.0-windows10.0.19041; on the default windows7.0 NuGet silently falls back to net462. -->
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>SkylineGlimpse</AssemblyName>
+    <RootNamespace>Glimpse.App</RootNamespace>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ScottPlot.WPF" Version="5.1.59" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Glimpse.Core\Glimpse.Core.csproj" />
+    <ProjectReference Include="..\Glimpse.Pwiz\Glimpse.Pwiz.csproj" />
+    <ProjectReference Include="..\Glimpse.Skyline\Glimpse.Skyline.csproj" />
+    <ProjectReference Include="..\Glimpse.Library\Glimpse.Library.csproj" />
+    <ProjectReference Include="..\Glimpse.Plotting\Glimpse.Plotting.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Glimpse.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Skyline tool manifest, copied next to the exe and so into the tool zip. -->
+    <None Include="tool-inf\info.properties" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="tool-inf\SkylineGlimpse.properties" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,261 @@
+<Window x:Class="Glimpse.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:sp="clr-namespace:ScottPlot.WPF;assembly=ScottPlot.WPF"
+        xmlns:doc="clr-namespace:Glimpse.Core.Document;assembly=Glimpse.Core"
+        Title="Glimpse" Height="900" Width="1500"
+        Loaded="OnLoaded" Closed="OnClosed" PreviewKeyDown="OnPreviewKeyDown">
+
+    <Window.Resources>
+        <CollectionViewSource x:Key="PropertyRows" Source="{Binding Properties}">
+            <CollectionViewSource.GroupDescriptions>
+                <PropertyGroupDescription PropertyName="Category" />
+            </CollectionViewSource.GroupDescriptions>
+        </CollectionViewSource>
+    </Window.Resources>
+
+    <DockPanel>
+        <ToolBarTray DockPanel.Dock="Top">
+            <ToolBar>
+                <Button Content="Open file..." Click="OnOpenFile" ToolTip="Open a .raw, .mzML or .mzXML file" />
+                <Separator />
+                <TextBlock Text="File:" VerticalAlignment="Center" Margin="4,0" />
+                <ComboBox x:Name="FileCombo" MinWidth="320" SelectionChanged="OnFileComboChanged"
+                          ToolTip="Result files of the Skyline document, and files opened here" />
+                <Separator />
+                <CheckBox x:Name="CentroidCheck" Content="Centroid" IsChecked="True" VerticalAlignment="Center"
+                          ToolTip="Centroid profile spectra with the vendor algorithm (applies when a file is opened)" />
+                <Separator />
+                <TextBlock Text="Units:" VerticalAlignment="Center" Margin="4,0" />
+                <ComboBox x:Name="UnitsCombo" Width="90" SelectedIndex="0" SelectionChanged="OnViewOptionChanged"
+                          ToolTip="Intensity as recorded (ions/s for Orbitrap/Astral), or ion counts (intensity x injection time)">
+                    <ComboBoxItem Content="Intensity" />
+                    <ComboBoxItem Content="Ions" />
+                </ComboBox>
+                <Separator />
+                <ToggleButton x:Name="PropertiesToggle" Content="Properties" IsChecked="True"
+                              Checked="OnPropertiesToggle" Unchecked="OnPropertiesToggle"
+                              ToolTip="Show or hide the properties panel" />
+            </ToolBar>
+        </ToolBarTray>
+
+        <StatusBar DockPanel.Dock="Bottom">
+            <StatusBarItem>
+                <TextBlock x:Name="StatusText" Text="Ready" />
+            </StatusBarItem>
+            <StatusBarItem HorizontalAlignment="Right">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock x:Name="SkylineText" Margin="0,0,12,0" Foreground="Gray" />
+                    <ProgressBar x:Name="Progress" Width="200" Height="14" Minimum="0" Maximum="1" Visibility="Collapsed" />
+                    <Button x:Name="CancelButton" Content="Cancel" Margin="6,0,0,0" Visibility="Collapsed" Click="OnCancel" />
+                </StackPanel>
+            </StatusBarItem>
+        </StatusBar>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="DocumentColumn" Width="260" MinWidth="0" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition x:Name="PropertiesColumn" Width="320" MinWidth="0" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Document panel: proteins / peptides of the connected Skyline document. -->
+            <Grid Grid.Column="0" x:Name="DocumentPanel">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="2*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Text="Skyline document" Style="{StaticResource SectionHeader}" />
+                <StackPanel Grid.Row="1">
+                    <TextBlock x:Name="DocumentText" TextWrapping="Wrap" Margin="4" Foreground="Gray"
+                               Text="Not connected to Skyline. Open a data file to browse it on its own." />
+                    <ProgressBar x:Name="DocumentProgress" Height="6" Margin="4,0,4,4" IsIndeterminate="True" Visibility="Collapsed" />
+                </StackPanel>
+                <TreeView Grid.Row="2" x:Name="DocumentTree" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                          SelectedItemChanged="OnDocumentTreeSelectionChanged" MouseDoubleClick="OnDocumentTreeDoubleClick">
+                    <TreeView.Resources>
+                        <HierarchicalDataTemplate DataType="{x:Type doc:DocProtein}" ItemsSource="{Binding Peptides}">
+                            <TextBlock Text="{Binding Name}" ToolTip="{Binding Accession}" />
+                        </HierarchicalDataTemplate>
+                        <HierarchicalDataTemplate DataType="{x:Type doc:DocPeptide}" ItemsSource="{Binding Precursors}">
+                            <TextBlock Text="{Binding ModifiedSequence}" />
+                        </HierarchicalDataTemplate>
+                        <DataTemplate DataType="{x:Type doc:DocPrecursor}">
+                            <TextBlock>
+                                <Run Text="{Binding Mz, StringFormat={}{0:0.0000}, Mode=OneWay}" />
+                                <Run Text="{Binding Charge, StringFormat={}{0}+, Mode=OneWay}" />
+                                <Run Text="{Binding LabelType, Mode=OneWay}" Foreground="Gray" />
+                            </TextBlock>
+                        </DataTemplate>
+                    </TreeView.Resources>
+                </TreeView>
+                <DockPanel Grid.Row="3" Margin="4,6,4,2">
+                    <CheckBox DockPanel.Dock="Right" x:Name="FollowSkylineCheck" Content="Follow Skyline" IsChecked="True"
+                              ToolTip="Track the selection in Skyline's Targets view" />
+                    <TextBlock x:Name="SelectionHeader" Text="Selection" FontWeight="SemiBold" />
+                </DockPanel>
+                <ListBox Grid.Row="4" x:Name="SelectionList" VirtualizingPanel.IsVirtualizing="True"
+                         MouseDoubleClick="OnSelectionListDoubleClick" DisplayMemberPath="ModifiedSequence" />
+            </Grid>
+
+            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" ResizeBehavior="PreviousAndNext" />
+
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <TabControl x:Name="TopTabs" Grid.Row="0" SelectionChanged="OnTopTabChanged">
+                    <TabItem Header="Chromatogram">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="2">
+                                <CheckBox x:Name="TicCheck" Content="TIC" IsChecked="True" Margin="4,0" VerticalAlignment="Center"
+                                          Checked="OnViewOptionChanged" Unchecked="OnViewOptionChanged" />
+                                <CheckBox x:Name="BpcCheck" Content="Base peak" Margin="4,0" VerticalAlignment="Center"
+                                          Checked="OnViewOptionChanged" Unchecked="OnViewOptionChanged" />
+                                <TextBlock Text="Scans:" Margin="12,0,4,0" VerticalAlignment="Center" />
+                                <ComboBox x:Name="ScanFilterCombo" Width="200" SelectionChanged="OnViewOptionChanged"
+                                          ToolTip="Which spectra the chromatogram sums: all, MS1, MS2, or one isolation window" />
+                                <CheckBox x:Name="AssignedCheck" Content="Assigned" Margin="12,0,4,0" VerticalAlignment="Center"
+                                          Checked="OnViewOptionChanged" Unchecked="OnViewOptionChanged"
+                                          ToolTip="Signal in each scan that belongs to document peptides (each peak counted once), and the rest" />
+                                <TextBlock Text="XIC:" Margin="12,0,4,0" VerticalAlignment="Center" />
+                                <ComboBox x:Name="XicModeCombo" Width="110" SelectedIndex="0" SelectionChanged="OnViewOptionChanged"
+                                          ToolTip="XICs of the selected peptides: none, one summed trace, one per protein, or one per peptide (no limit)">
+                                    <ComboBoxItem Content="Off" />
+                                    <ComboBoxItem Content="Summed" />
+                                    <ComboBoxItem Content="Per protein" />
+                                    <ComboBoxItem Content="Per peptide" />
+                                </ComboBox>
+                                <ComboBox x:Name="XicLevelCombo" Width="120" Margin="4,0" SelectedIndex="0" SelectionChanged="OnViewOptionChanged"
+                                          ToolTip="Sum the document's fragment transitions (MS2) or precursor isotopes (MS1)">
+                                    <ComboBoxItem Content="MS2 fragments" />
+                                    <ComboBoxItem Content="MS1 precursor" />
+                                </ComboBox>
+                                <TextBlock x:Name="ChromHoverText" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="Gray" />
+                            </StackPanel>
+                            <sp:WpfPlot x:Name="ChromPlot" />
+                        </DockPanel>
+                    </TabItem>
+                    <TabItem Header="Heatmap">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="2">
+                                <TextBlock Text="Level:" Margin="4,0" VerticalAlignment="Center" />
+                                <ComboBox x:Name="HeatLevelCombo" Width="80" SelectedIndex="0" SelectionChanged="OnViewOptionChanged">
+                                    <ComboBoxItem Content="MS1" />
+                                    <ComboBoxItem Content="MS2" />
+                                </ComboBox>
+                                <TextBlock Text="Value:" Margin="12,0,4,0" VerticalAlignment="Center" />
+                                <ComboBox x:Name="HeatValueCombo" Width="170" SelectedIndex="0" SelectionChanged="OnViewOptionChanged"
+                                          ToolTip="Intensity; fraction of the signal assigned to document peptides; or document peptides detected per spectrum">
+                                    <ComboBoxItem Content="Intensity" />
+                                    <ComboBoxItem Content="Assigned fraction" />
+                                    <ComboBoxItem Content="Peptides per spectrum" />
+                                </ComboBox>
+                                <CheckBox x:Name="HeatLogCheck" Content="Log scale" IsChecked="True" Margin="12,0" VerticalAlignment="Center"
+                                          Checked="OnViewOptionChanged" Unchecked="OnViewOptionChanged" />
+                            </StackPanel>
+                            <sp:WpfPlot x:Name="HeatPlot" />
+                        </DockPanel>
+                    </TabItem>
+                </TabControl>
+
+                <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" ResizeBehavior="PreviousAndNext" />
+
+                <DockPanel Grid.Row="2">
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="2,2,2,0">
+                        <TextBlock Text="Label:" Margin="4,0" VerticalAlignment="Center" />
+                        <ComboBox x:Name="LabelSourceCombo" Width="150" SelectedIndex="2" SelectionChanged="OnLabelOptionChanged"
+                                  ToolTip="Which ions to label for each peptide: those in the document, those in its library spectrum, or all of the selected types">
+                            <ComboBoxItem Content="Document transitions" />
+                            <ComboBoxItem Content="Library ions" />
+                            <ComboBoxItem Content="All ions" />
+                        </ComboBox>
+                        <Menu VerticalAlignment="Center" Margin="6,0" Background="Transparent">
+                            <MenuItem x:Name="IonTypesMenu" Header="Ion types ▾" ToolTip="Fragment types to label (for Library and All ions)" />
+                            <MenuItem x:Name="ChargesMenu" Header="Charges ▾" ToolTip="Fragment charges to label (for Library and All ions)" />
+                        </Menu>
+                        <CheckBox x:Name="ShowLabelsCheck" Content="Labels" IsChecked="True" Margin="6,0" VerticalAlignment="Center"
+                                  Checked="OnLabelOptionChanged" Unchecked="OnLabelOptionChanged" />
+                        <CheckBox x:Name="ShowMzCheck" Content="m/z" Margin="6,0" VerticalAlignment="Center"
+                                  Checked="OnLabelOptionChanged" Unchecked="OnLabelOptionChanged" ToolTip="Add the observed m/z to each label" />
+                        <CheckBox x:Name="DuplicatesCheck" Content="Duplicates" Margin="6,0" VerticalAlignment="Center"
+                                  Checked="OnLabelOptionChanged" Unchecked="OnLabelOptionChanged"
+                                  ToolTip="Show every ion a shared peak matches, not just the first" />
+                        <CheckBox x:Name="IgnoreRtCheck" Content="Ignore RT" Margin="6,0" VerticalAlignment="Center"
+                                  Checked="OnLabelOptionChanged" Unchecked="OnLabelOptionChanged"
+                                  ToolTip="Consider every document precursor whose m/z is in the isolation window, not just those inside their integrated peak" />
+                    </StackPanel>
+                    <DockPanel DockPanel.Dock="Top" Margin="2">
+                        <Button DockPanel.Dock="Left" Content="&#x25C0;" Width="28" Click="OnPreviousScan" ToolTip="Previous scan of the same kind (Left arrow)" />
+                        <Button DockPanel.Dock="Left" Content="&#x25B6;" Width="28" Margin="2,0" Click="OnNextScan" ToolTip="Next scan of the same kind (Right arrow)" />
+                        <TextBlock x:Name="SpectrumHoverText" DockPanel.Dock="Right" Foreground="Gray" Margin="8,0" VerticalAlignment="Center" />
+                        <TextBlock x:Name="SpectrumTitle" Margin="6,0" VerticalAlignment="Center" FontWeight="SemiBold"
+                                   Text="Click a chromatogram or heatmap to show a spectrum" TextTrimming="CharacterEllipsis" />
+                    </DockPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="250" />
+                        </Grid.ColumnDefinitions>
+                        <sp:WpfPlot x:Name="SpectrumPlot" Grid.Column="0" />
+                        <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" ResizeBehavior="PreviousAndNext" />
+                        <DockPanel Grid.Column="2">
+                            <TextBlock DockPanel.Dock="Top" x:Name="LegendHeader" Text="Peptides in spectrum" FontWeight="SemiBold" Margin="4,2" TextWrapping="Wrap" />
+                            <ListBox x:Name="LegendList" BorderThickness="0" SelectionChanged="OnLegendSelectionChanged"
+                                     MouseDoubleClick="OnLegendDoubleClick" VirtualizingPanel.IsVirtualizing="True"
+                                     ToolTip="Click to focus a peptide; double-click to select it in Skyline">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Rectangle Width="10" Height="10" Fill="{Binding Swatch}" Margin="0,0,5,0" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Text}" ToolTip="{Binding Detail}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Grid>
+                </DockPanel>
+            </Grid>
+
+            <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Stretch" ResizeBehavior="PreviousAndNext" />
+
+            <DockPanel Grid.Column="4" x:Name="PropertiesPanel">
+                <TextBlock DockPanel.Dock="Top" Text="Properties" Style="{StaticResource SectionHeader}" />
+                <ListView ItemsSource="{Binding Source={StaticResource PropertyRows}}" BorderThickness="0"
+                          ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListView.GroupStyle>
+                        <GroupStyle>
+                            <GroupStyle.HeaderTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Margin="0,6,0,2" Foreground="SteelBlue" />
+                                </DataTemplate>
+                            </GroupStyle.HeaderTemplate>
+                        </GroupStyle>
+                    </ListView.GroupStyle>
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Name}" Foreground="DimGray" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" />
+                                <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" ToolTip="{Binding Value}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </DockPanel>
+        </Grid>
+    </DockPanel>
+</Window>
