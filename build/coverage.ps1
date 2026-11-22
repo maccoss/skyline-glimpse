@@ -7,14 +7,26 @@
   Usage:
     pwsh build/coverage.ps1                 # summary, classes under 90% listed
     pwsh build/coverage.ps1 -MinimumPercent 90   # also fail when any Glimpse project is below 90%
+    pwsh build/coverage.ps1 -MinimumPercent 90 -Projects Glimpse.Core,Glimpse.Library -Filter "Category!=RawData"
+                                            # CI: gate only these projects, skip the raw-file tests
 #>
-param([int]$MinimumPercent = 0)
+param(
+    [int]$MinimumPercent = 0,
+    # Projects the minimum applies to (default: every Glimpse project). The others are still listed.
+    [string[]]$Projects = @(),
+    # A dotnet test --filter expression.
+    [string]$Filter = ''
+)
+# "pwsh -File coverage.ps1 -Projects A,B" passes "A,B" as one string.
+$Projects = @($Projects | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
 $ErrorActionPreference = 'Stop'
 $root = Resolve-Path (Join-Path $PSScriptRoot '..')
 $results = Join-Path $root 'tests\Glimpse.Tests\TestResults'
 Remove-Item -Recurse -Force $results -ErrorAction SilentlyContinue
 
-dotnet test (Join-Path $root 'tests\Glimpse.Tests') --collect:"XPlat Code Coverage" -v q
+$testArgs = @((Join-Path $root 'tests\Glimpse.Tests'), '--collect:XPlat Code Coverage', '-v', 'q')
+if ($Filter) { $testArgs += @('--filter', $Filter) }
+dotnet test @testArgs
 if ($LASTEXITCODE -ne 0) { Write-Host 'Tests failed.' -ForegroundColor Red; exit 1 }
 
 $file = Get-ChildItem $results -Recurse -Filter coverage.cobertura.xml | Select-Object -First 1
@@ -41,7 +53,8 @@ foreach ($package in $xml.coverage.packages.package) {
         $p = 100 * $entry.Value[0] / [math]::Max(1, $entry.Value[1])
         if ($entry.Value[1] -gt 0 -and $p -lt 90) { Write-Host ("    {0,5:N0}%  {1}" -f $p, $entry.Key) }
     }
-    if ($MinimumPercent -gt 0 -and $percent -lt $MinimumPercent) { $failed = $true }
+    $gated = $Projects.Count -eq 0 -or $Projects -contains $package.name
+    if ($MinimumPercent -gt 0 -and $gated -and $percent -lt $MinimumPercent) { $failed = $true }
 }
 Write-Host "Full report: $($file.FullName)"
 if ($failed) { Write-Host "Coverage below $MinimumPercent%." -ForegroundColor Red; exit 1 }

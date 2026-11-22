@@ -37,9 +37,10 @@ Notes follow `release-notes/README.md`: append to `RELEASE_NOTES_next.md` as cha
    start a fresh `RELEASE_NOTES_next.md`.
 2. Set the version in BOTH `Directory.Build.props` `<Version>` and `src/Glimpse.App/tool-inf/info.properties`
    `Version =`. `VersionTests` and `package-and-verify.ps1` fail when they differ.
-3. `pwsh build/package-and-verify.ps1` (tests, zip, launch check). The zip is built locally: it needs the
-   pwiz-sharp checkout, which CI does not have.
-4. Commit, squash-merge, tag `v{version}`, attach `publish/SkylineGlimpse.zip` and the notes to a GitHub Release.
+3. `pwsh build/package-and-verify.ps1` (tests, zip, launch check). This runs the raw-file tests, which CI skips.
+4. Commit, squash-merge, tag `v{version}` and push the tag. `release.yml` checks the version against the tag,
+   tests, packages and launch-verifies the zip, and publishes the GitHub Release with
+   `RELEASE_NOTES_v{version}.md` as its body.
 
 ## Testing
 
@@ -52,6 +53,10 @@ Notes follow `release-notes/README.md`: append to `RELEASE_NOTES_next.md` as cha
   kills each meaningful survivor or note why it is equivalent (cannot change behavior).
 - Assert literal expected values, never the code's own constants (comparing an array with itself
   proves nothing - mutation testing found exactly that once).
+- Tests that read instrument files from the pwiz checkout carry `[Trait("Category", TestData.RawData)]`:
+  CI checks out only the pwiz-sharp sources and runs `--filter "Category!=RawData"`.
+- CI (`.github/workflows/ci.yml`) pins pwiz-sharp in `.github/actions/checkout-pwiz-sharp`. Bump that
+  commit deliberately, to the one you tested against locally.
 - Test doubles live in `tests/Glimpse.Tests/Fakes.cs` (in-memory run, documents, library) and
   `SkylineConnectionTests.cs` (`FakeSkylineServer`, which speaks Skyline's real pipe protocol).
 

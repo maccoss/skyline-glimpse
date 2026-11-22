@@ -16,6 +16,7 @@ public class PwizReaderTests
     public PwizReaderTests(ITestOutputHelper output) => _out = output;
 
     [Fact]
+    [Trait("Category", TestData.RawData)]
     public void SmallRaw_IndexesEverySpectrum()
     {
         using var source = PwizMsDataSource.Open(TestData.SmallRaw);
@@ -33,6 +34,7 @@ public class PwizReaderTests
     }
 
     [Fact]
+    [Trait("Category", TestData.RawData)]
     public void OnlyThermoRawFilesAreReadOnSeveralThreads()
     {
         Assert.True(PwizMsDataSource.SupportsParallelReaders(TestData.SmallRaw));   // .RAW: any case
@@ -54,6 +56,7 @@ public class PwizReaderTests
     }
 
     [Fact]
+    [Trait("Category", TestData.RawData)]
     public void ThermoHcd_HeaderMatchesPeaks()
     {
         using var source = PwizMsDataSource.Open(TestData.ThermoTestFile("BSA-FT-HCD.raw"));
@@ -74,6 +77,7 @@ public class PwizReaderTests
     }
 
     [Fact]
+    [Trait("Category", TestData.RawData)]
     public void ThermoEtd_ReportsEtd()
     {
         using var source = PwizMsDataSource.Open(TestData.ThermoTestFile("BSA-FT-ETD.raw"));
@@ -85,6 +89,7 @@ public class PwizReaderTests
     }
 
     [Fact]
+    [Trait("Category", TestData.RawData)]
     public void Chromatogram_IonsUseInjectionTime()
     {
         using var source = PwizMsDataSource.Open(TestData.ThermoTestFile("BSA-FT-HCD.raw"));
@@ -103,6 +108,7 @@ public class PwizReaderTests
     /// spectrum cap) to run it; otherwise it passes without doing anything.
     /// </summary>
     [Fact]
+    [Trait("Category", TestData.RawData)]
     public void BigRaw_FullPassTiming()
     {
         if (TestData.BigRaw is not { } path)

@@ -11,6 +11,7 @@ public class PwizParityTests
     private static string SmallMzml => Path.Combine(Path.GetDirectoryName(TestData.SmallRaw)!, "small.pwiz.1.1.mzML");
 
     [Fact]
+    [Trait("Category", TestData.RawData)]
     public void RawAndConvertedMzmlIndexTheSame()
     {
         using var raw = PwizMsDataSource.Open(TestData.SmallRaw);
@@ -42,6 +43,7 @@ public class PwizParityTests
     }
 
     [Fact]
+    [Trait("Category", TestData.RawData)]
     public void ReaderDetailsAndRunInfo()
     {
         using var source = PwizMsDataSource.Open(TestData.ThermoTestFile("BSA-FT-HCD.raw"));

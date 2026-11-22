@@ -5,6 +5,12 @@ namespace Glimpse.Tests;
 /// <summary>Locations of test data that lives outside this repository.</summary>
 internal static class TestData
 {
+    /// <summary>
+    /// Trait category of the tests that read instrument files from the ProteoWizard checkout. CI checks
+    /// out only the pwiz-sharp sources, so it runs <c>dotnet test --filter "Category!=RawData"</c>.
+    /// </summary>
+    public const string RawData = "RawData";
+
     private static string Metadata(string key) =>
         typeof(TestData).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
             .FirstOrDefault(a => a.Key == key)?.Value ?? "";

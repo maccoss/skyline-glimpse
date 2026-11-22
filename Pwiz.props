@@ -9,6 +9,8 @@
 
         dotnet build -p:PwizSharpDir=<path-to>/pwiz/pwiz-sharp
 
+    or set the PWIZ_SHARP_DIR environment variable (CI's checkout-pwiz-sharp action does).
+
     Vendor SDKs are license-gated: without -p:IAgreeToVendorLicenses=true the Thermo reader compiles
     to a stub that recognizes a .raw and refuses to read it.
 
@@ -20,6 +22,7 @@
                                 Glimpse.Pwiz may touch pwiz types, so that switch stays one project.
   -->
   <PropertyGroup>
+    <PwizSharpDir Condition="'$(PwizSharpDir)' == ''">$(PWIZ_SHARP_DIR)</PwizSharpDir>
     <PwizSharpDir Condition="'$(PwizSharpDir)' == ''">$(MSBuildThisFileDirectory)..\..\ProteoWizard\pwiz\pwiz-sharp</PwizSharpDir>
     <PwizMsDataProject>$(PwizSharpDir)\pwiz\src\MsData\MsData.csproj</PwizMsDataProject>
     <PwizThermoProject>$(PwizSharpDir)\pwiz\src\Vendor\Thermo\Thermo.csproj</PwizThermoProject>

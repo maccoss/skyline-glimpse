@@ -1,0 +1,51 @@
+# Build, test, package and launch-verify the Skyline external tool on every push to main and every PR.
+# Modeled on Skyline-PRISM's dotnet-ci.yml. Windows only: the app is WPF and the tests reference the
+# net10.0-windows Skyline client.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build, test and package the tool (windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Check out pwiz-sharp
+        uses: ./.github/actions/checkout-pwiz-sharp
+
+      # The raw-file tests read pwiz test data that the sparse checkout leaves out (Category=RawData);
+      # everything else runs. The Pwiz project's coverage comes from those tests, so it is not gated here.
+      - name: Test with coverage gate
+        shell: pwsh
+        run: >
+          ./build/coverage.ps1 -MinimumPercent 90
+          -Projects Glimpse.Core,Glimpse.Library,Glimpse.Plotting,Glimpse.Skyline
+          -Filter "Category!=RawData"
+
+      - name: Package SkylineGlimpse.zip
+        run: dotnet msbuild build/package.proj /p:Configuration=Release
+
+      # Extracts the zip and runs the exe: the only check of what a user installs. Unit tests cannot see a
+      # startup crash, and a file-list check cannot either.
+      - name: Launch-verify the packaged tool
+        shell: pwsh
+        run: ./build/verify-tool.ps1
+
+      - name: Upload the tool zip
+        uses: actions/upload-artifact@v7
+        with:
+          name: SkylineGlimpse-zip
+          path: publish/SkylineGlimpse.zip
+          if-no-files-found: error

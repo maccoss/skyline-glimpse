@@ -4,6 +4,7 @@
 
 # Skyline Glimpse
 
+[![CI](https://github.com/maccoss/skyline-glimpse/actions/workflows/ci.yml/badge.svg)](https://github.com/maccoss/skyline-glimpse/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/maccoss/skyline-glimpse?display_name=tag&label=release)](https://github.com/maccoss/skyline-glimpse/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/maccoss/skyline-glimpse/total?label=downloads&color=success)](https://github.com/maccoss/skyline-glimpse/releases)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -185,6 +186,16 @@ pwsh build/package-and-verify.ps1     # version check, tests, publish/SkylineGli
 ```
 
 `GLIMPSE_BIG_RAW=<path to a .raw>` makes the test suite time a full pass over a real run.
+
+### Continuous integration
+
+[`ci.yml`](.github/workflows/ci.yml) runs on every pull request and push to `main`: it checks out
+pwiz-sharp at the commit pinned in [`checkout-pwiz-sharp`](.github/actions/checkout-pwiz-sharp/action.yml),
+runs the tests with a 90% line-coverage gate on Core, Library, Plotting and Skyline, then packages and
+launch-verifies `SkylineGlimpse.zip` and keeps it as a build artifact. The tests that read pwiz's Thermo test
+files (`Category=RawData`) are skipped there, since CI checks out only the pwiz-sharp sources; run the full
+suite locally. [`release.yml`](.github/workflows/release.yml) builds the zip for a `v*` tag and publishes
+the GitHub Release.
 
 ### Test quality
 
