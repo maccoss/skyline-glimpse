@@ -109,7 +109,7 @@ public sealed class DocumentSignalObserver : IScanObserver
         {
             AdvanceActive(rt);
             foreach (var f in _active)
-                inPeak += Extract(spectrum, f, f.Ms1, f.Ms1Xic, rt, countMs1Bins: true);
+                inPeak += Extract(spectrum, f, f.Ms1, f.Ms1Xic, f.Ms1Claims, rt, countMs1Bins: true);
         }
         else if (h.MsLevel >= 2 && h.HasIsolationWindow)
         {
@@ -118,7 +118,7 @@ public sealed class DocumentSignalObserver : IScanObserver
             {
                 var f = _byMz[i];
                 if (rt >= f.Start - XicMarginMinutes && rt <= f.End + XicMarginMinutes)
-                    inPeak += Extract(spectrum, f, f.Ms2, f.Ms2Xic, rt, countMs1Bins: false);
+                    inPeak += Extract(spectrum, f, f.Ms2, f.Ms2Xic, f.Ms2Claims, rt, countMs1Bins: false);
             }
         }
 
@@ -166,10 +166,11 @@ public sealed class DocumentSignalObserver : IScanObserver
     }
 
     /// <summary>
-    /// XIC point for one precursor in one scan, and its claims when the scan is inside its peak.
+    /// XIC point for one precursor in one scan, and its claims when the scan is inside its peak (each
+    /// claimed peak recorded, so a summed XIC can count a peak once however many precursors claim it).
     /// Returns 1 when the precursor counts as present in the spectrum.
     /// </summary>
-    private int Extract(SpectrumData spectrum, FilePrecursor f, (double Lo, double Hi)[] windows, XicBuilder xic, double rt, bool countMs1Bins)
+    private int Extract(SpectrumData spectrum, FilePrecursor f, (double Lo, double Hi)[] windows, XicBuilder xic, ClaimBuilder claims, double rt, bool countMs1Bins)
     {
         var mzs = spectrum.Mz;
         var intensities = spectrum.Intensity;
@@ -181,7 +182,10 @@ public sealed class DocumentSignalObserver : IScanObserver
             {
                 sum += intensities[i];
                 if (inside)
+                {
                     _stamp[i] = _generation;
+                    claims.Add(spectrum.Header.Index, i, (float)intensities[i]);
+                }
             }
         }
         if (windows.Length > 0)
@@ -209,7 +213,11 @@ public sealed class DocumentSignalObserver : IScanObserver
     {
         var xics = new Dictionary<DocPrecursor, PrecursorXic>();
         foreach (var f in _byMz)
-            xics[f.Precursor] = new PrecursorXic(f.Precursor, f.Ms1Xic.Scans(), f.Ms1Xic.Values(), f.Ms2Xic.Scans(), f.Ms2Xic.Values());
+            xics[f.Precursor] = new PrecursorXic(f.Precursor, f.Ms1Xic.Scans(), f.Ms1Xic.Values(), f.Ms2Xic.Scans(), f.Ms2Xic.Values())
+            {
+                Ms1Claims = f.Ms1Claims.Build(),
+                Ms2Claims = f.Ms2Claims.Build(),
+            };
 
         Result = new DocumentSignals(
             _fileName, _assigned, _counts, xics,
@@ -267,6 +275,26 @@ public sealed class DocumentSignalObserver : IScanObserver
         public XicBuilder Ms1Xic { get; } = new();
 
         public XicBuilder Ms2Xic { get; } = new();
+
+        public ClaimBuilder Ms1Claims { get; } = new();
+
+        public ClaimBuilder Ms2Claims { get; } = new();
+    }
+
+    private sealed class ClaimBuilder
+    {
+        private List<long>? _peaks;
+        private List<float>? _intensities;
+
+        public void Add(int scan, int peak, float intensity)
+        {
+            (_peaks ??= new List<long>()).Add(PeakClaims.Key(scan, peak));
+            (_intensities ??= new List<float>()).Add(intensity);
+        }
+
+        public PeakClaims Build() => _peaks is null
+            ? PeakClaims.Empty
+            : new PeakClaims(_peaks.ToArray(), _intensities!.ToArray());
     }
 
     private sealed class XicBuilder
@@ -307,4 +335,26 @@ public sealed record DocumentSignals(
 /// (its fragment transitions, in the MS2 scans whose isolation window contains it). Values are as
 /// recorded; convert to ions with each scan's injection time.
 /// </summary>
-public sealed record PrecursorXic(DocPrecursor Precursor, int[] Ms1Scans, float[] Ms1Values, int[] Ms2Scans, float[] Ms2Values);
+public sealed record PrecursorXic(DocPrecursor Precursor, int[] Ms1Scans, float[] Ms1Values, int[] Ms2Scans, float[] Ms2Values)
+{
+    /// <summary>The MS1 peaks this precursor claimed inside its integrated peak; null when not recorded.</summary>
+    public PeakClaims? Ms1Claims { get; init; }
+
+    /// <summary>The MS2 peaks this precursor claimed inside its integrated peak; null when not recorded.</summary>
+    public PeakClaims? Ms2Claims { get; init; }
+}
+
+/// <summary>
+/// The peaks one precursor claimed in one file, each named by its scan and its position in that scan's
+/// peak list, with its intensity (as recorded). A peak claimed by several precursors (a peptide listed under
+/// two proteins, or two precursors whose windows catch the same peak) has the same key in each, so a sum
+/// over a selection can count it once.
+/// </summary>
+public sealed record PeakClaims(long[] Peaks, float[] Intensities)
+{
+    public static PeakClaims Empty { get; } = new(Array.Empty<long>(), Array.Empty<float>());
+
+    public static long Key(int scan, int peak) => ((long)scan << 32) | (uint)peak;
+
+    public static int ScanOf(long key) => (int)(key >> 32);
+}

@@ -41,6 +41,10 @@ file and spectrum.*
 - **Integrated peaks.** With *Integrated only* on (the default), each XIC is drawn only between
   Skyline's integration boundaries in this file, so the trace is the peak Skyline integrated. Clear it
   to see the minute around each peak as well.
+- **Each signal counted once.** A summed or per-protein XIC adds up the peaks its precursors claimed
+  inside their integrated peaks, each peak once. A peptide listed under two proteins, or two precursors
+  whose windows catch the same peak, never count the same signal twice, so a summed XIC stays at or
+  below the TIC. The sum of every peptide equals the *Assigned* signal.
 - **One intensity axis.** The TIC, base peak, assigned signal and XICs share one axis, so an XIC shows
   as the fraction of the TIC it is. A peptide's fragment XIC is often a millionth of an MS1 TIC; tick
   *Scale XICs separately* to give the XICs their own axis on the right.

@@ -152,6 +152,51 @@ public class DocumentSignalTests
     }
 
     [Fact]
+    public void CombinedXicsNeverCountAPeakTwice()
+    {
+        // AAK under P1 and its copy under P3 (a shared peptide), and CCK under P2, whose precursor window
+        // (2.5 ppm away) catches the same MS1 peak as AAK's. One unrelated peak at 450 makes up the TIC.
+        var p1 = new DocProtein("P1", null, null, null);
+        var p2 = new DocProtein("P2", null, null, null);
+        var p3 = new DocProtein("P3", null, null, null);
+        var aak = Docs.Precursor(p1, "AAK", 2, 400.0, "run1.raw", 0, 3, ("precursor", 2, 400.0));
+        var copy = Docs.Precursor(p3, "AAK", 2, 400.0, "run1.raw", 0, 3, ("precursor", 2, 400.0));
+        var cck = Docs.Precursor(p2, "CCK", 2, 400.001, "run1.raw", 0, 3, ("precursor", 2, 400.001));
+        var source = new FakeSource()
+            .Ms1(1, new[] { 400.0, 450.0 }, new[] { 100.0, 50.0 })
+            .Ms1(2, new[] { 400.0, 450.0 }, new[] { 60.0, 50.0 });
+        var observer = new DocumentSignalObserver(Docs.Model(p1, p2, p3), "run1.raw", DocumentSettings.Default);
+        var index = ScanIndexBuilder.Build(source, false, new IScanObserver[] { observer });
+        var signals = observer.Result!;
+        var all = new[] { aak.Peptide, cck.Peptide, copy.Peptide };
+
+        // Integrated only: the union of claimed peaks. Three precursors claim the 400 peak; it counts once,
+        // and the sum stays under the TIC (150, then 110).
+        var sum = Assert.Single(XicTraces.Build(index, signals, all, XicMode.Summed, true, IntensityUnits.AsRecorded, integratedOnly: true));
+        Assert.Equal(new[] { 1.0, 2.0 }, sum.Times);
+        Assert.Equal(new[] { 100.0, 60.0 }, sum.Values);
+        Assert.Equal("Sum of 2 peptides", sum.Name);   // AAK and CCK: the copy is the same molecule
+        Assert.All(sum.Times.Select((t, i) => sum.Values[i] <= index[i].TotalIonCurrent), Assert.True);
+
+        // A shared peptide is drawn once per peptide, but each protein keeps it in its own trace.
+        var perPeptide = XicTraces.Build(index, signals, all, XicMode.PerPeptide, true, IntensityUnits.AsRecorded, integratedOnly: true);
+        Assert.Equal(new[] { aak.Peptide, cck.Peptide }, perPeptide.Select(t => t.Owner));
+        var perProtein = XicTraces.Build(index, signals, all, XicMode.PerProtein, true, IntensityUnits.AsRecorded, integratedOnly: true);
+        Assert.Equal(new object[] { p1, p2, p3 }, perProtein.Select(t => t.Owner));
+        Assert.All(perProtein, t => Assert.Equal(new[] { 100.0, 60.0 }, t.Values));
+
+        // Not limited to the peak: the margins hold no claims, so each distinct precursor is summed once.
+        // The copy no longer adds, but AAK's and CCK's overlapping windows still do (100 + 100).
+        var margins = Assert.Single(XicTraces.Build(index, signals, all, XicMode.Summed, true, IntensityUnits.AsRecorded, integratedOnly: false));
+        Assert.Equal(200.0, margins.Values[0], 6);
+        Assert.Equal(120.0, margins.Values[^1], 6);
+
+        // Ions: the union is converted per scan (10 ms injections: x 0.01).
+        var ions = Assert.Single(XicTraces.Build(index, signals, all, XicMode.Summed, true, IntensityUnits.Ions, integratedOnly: true));
+        Assert.Equal(new[] { 1.0, 0.6 }, ions.Values.Select(v => Math.Round(v, 6)));
+    }
+
+    [Fact]
     public void PeptideWithTwoChargesIsSummed()
     {
         var protein = new DocProtein("P", null, null, null);

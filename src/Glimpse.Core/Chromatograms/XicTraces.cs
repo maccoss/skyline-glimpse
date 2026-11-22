@@ -24,6 +24,14 @@ public static class XicTraces
     /// Keep only each precursor's points between Skyline's integration boundaries in this file, instead of
     /// the whole extracted window (the peak plus a margin on each side).
     /// </param>
+    /// <remarks>
+    /// A trace that combines several precursors never counts the same signal twice. With
+    /// <paramref name="integratedOnly"/> it adds up the union of the peaks the precursors claimed (see
+    /// <see cref="PeakClaims"/>), so a peak caught by two precursors' windows, or by the copies of a peptide
+    /// listed under two proteins, counts once and a trace stays at or below the TIC. Without it the margins
+    /// around each peak hold no claims, and each distinct precursor (sequence, charge, label) is summed once:
+    /// the copies of a shared peptide no longer add up, though two precursors' overlapping windows still can.
+    /// </remarks>
     public static List<XicTrace> Build(
         ScanIndex index, DocumentSignals signals, IReadOnlyList<DocPeptide> peptides, XicMode mode, bool ms1, IntensityUnits units,
         bool integratedOnly = false)
@@ -32,55 +40,128 @@ public static class XicTraces
         if (mode == XicMode.Off || peptides.Count == 0)
             return result;
 
-        // Each peptide's own trace: its precursors (charge states, labels) summed.
-        var perPeptide = new List<(DocPeptide Peptide, double[] T, double[] Y)>();
-        foreach (var peptide in peptides)
-        {
-            var parts = new List<(double[] T, double[] Y)>();
-            foreach (var precursor in peptide.Precursors)
-            {
-                if (signals.Xics.TryGetValue(precursor, out var xic))
-                {
-                    var (from, to) = (double.NegativeInfinity, double.PositiveInfinity);
-                    if (integratedOnly && precursor.Peaks.TryGetValue(signals.FileName, out var peak) && peak.HasBoundaries)
-                        (from, to) = (peak.Start, peak.End);
-                    var trace = Points(index, ms1 ? xic.Ms1Scans : xic.Ms2Scans, ms1 ? xic.Ms1Values : xic.Ms2Values, units, from, to);
-                    if (trace.T.Length > 0)
-                        parts.Add(trace);
-                }
-            }
-            if (parts.Count == 1)
-                perPeptide.Add((peptide, parts[0].T, parts[0].Y));
-            else if (parts.Count > 1)
-            {
-                var (t, y) = SumOnGrid(parts, GridStep(index));
-                perPeptide.Add((peptide, t, y));
-            }
-        }
+        // A peptide listed under several proteins is one molecule: one trace, counted once.
+        var distinct = DistinctMolecules(peptides);
+
+        (double[] T, double[] Y)? Trace(IEnumerable<DocPeptide> group) =>
+            Combined(index, signals, group.SelectMany(p => p.Precursors), ms1, units, integratedOnly);
+        // Labels count the peptides that have an XIC in this file.
+        int Measured(IEnumerable<DocPeptide> group) => group.Count(p => p.Precursors.Any(signals.Xics.ContainsKey));
 
         switch (mode)
         {
             case XicMode.PerPeptide:
-                foreach (var (peptide, t, y) in perPeptide)
-                    result.Add(new XicTrace($"{peptide.ModifiedSequence} ({peptide.Protein.Name})", t, y, peptide));
+                foreach (var peptide in distinct)
+                {
+                    if (Trace(new[] { peptide }) is { } t)
+                        result.Add(new XicTrace($"{peptide.ModifiedSequence} ({peptide.Protein.Name})", t.T, t.Y, peptide));
+                }
                 break;
             case XicMode.PerProtein:
-                foreach (var group in perPeptide.GroupBy(p => p.Peptide.Protein))
+                // Every protein keeps its own copy of a shared peptide: each protein's trace is whole.
+                foreach (var group in peptides.GroupBy(p => p.Protein))
                 {
-                    var (t, y) = SumOnGrid(group.Select(g => (g.T, g.Y)).ToList(), GridStep(index));
-                    result.Add(new XicTrace($"{group.Key.Name} ({group.Count()} peptides)", t, y, group.Key));
+                    if (Trace(group) is { } t)
+                        result.Add(new XicTrace($"{group.Key.Name} ({Measured(group)} peptides)", t.T, t.Y, group.Key));
                 }
                 break;
             case XicMode.Summed:
-                if (perPeptide.Count > 0)
-                {
-                    var (t, y) = SumOnGrid(perPeptide.Select(p => (p.T, p.Y)).ToList(), GridStep(index));
-                    result.Add(new XicTrace($"Sum of {perPeptide.Count:N0} peptides", t, y, null));
-                }
+                if (Trace(distinct) is { } sum)
+                    result.Add(new XicTrace($"Sum of {Measured(distinct):N0} peptides", sum.T, sum.Y, null));
                 break;
         }
         return result;
     }
+
+    /// <summary>The peptides, each molecule (modified sequence) once, the first of its copies kept.</summary>
+    internal static List<DocPeptide> DistinctMolecules(IEnumerable<DocPeptide> peptides)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        return peptides.Where(p => seen.Add(p.ModifiedSequence)).ToList();
+    }
+
+    /// <summary>
+    /// One trace for a set of precursors, each signal counted once (see <see cref="Build"/>); null when none
+    /// of them has a point.
+    /// </summary>
+    private static (double[] T, double[] Y)? Combined(
+        ScanIndex index, DocumentSignals signals, IEnumerable<DocPrecursor> precursors, bool ms1, IntensityUnits units, bool integratedOnly)
+    {
+        var withXic = new List<(DocPrecursor Precursor, PrecursorXic Xic)>();
+        var molecules = new HashSet<(string, int, string)>();
+        foreach (var precursor in precursors)
+        {
+            // Copies of one precursor under different proteins: the first stands for all of them.
+            if (molecules.Add((precursor.ModifiedSequence, precursor.Charge, precursor.LabelType))
+                && signals.Xics.TryGetValue(precursor, out var xic))
+            {
+                withXic.Add((precursor, xic));
+            }
+        }
+        if (withXic.Count == 0)
+            return null;
+
+        if (integratedOnly && withXic.All(x => (ms1 ? x.Xic.Ms1Claims : x.Xic.Ms2Claims) is not null))
+            return Union(index, signals, withXic, ms1, units);
+
+        var parts = new List<(double[] T, double[] Y)>();
+        foreach (var (precursor, xic) in withXic)
+        {
+            var (from, to) = Bounds(precursor, signals.FileName, integratedOnly);
+            var trace = Points(index, ms1 ? xic.Ms1Scans : xic.Ms2Scans, ms1 ? xic.Ms1Values : xic.Ms2Values, units, from, to);
+            if (trace.T.Length > 0)
+                parts.Add(trace);
+        }
+        return parts.Count switch
+        {
+            0 => null,
+            1 => parts[0],
+            _ => SumOnGrid(parts, GridStep(index)),
+        };
+    }
+
+    /// <summary>
+    /// Per scan, the intensity of the peaks any of the precursors claimed inside its integrated peak, each
+    /// peak once. Scans inside a precursor's peak where it claimed nothing are zero, so the trace returns to
+    /// the baseline between peaks instead of being drawn across them.
+    /// </summary>
+    private static (double[] T, double[] Y)? Union(
+        ScanIndex index, DocumentSignals signals, List<(DocPrecursor Precursor, PrecursorXic Xic)> precursors, bool ms1, IntensityUnits units)
+    {
+        var perScan = new Dictionary<int, double>();
+        var counted = new HashSet<long>();
+        foreach (var (precursor, xic) in precursors)
+        {
+            var (from, to) = Bounds(precursor, signals.FileName, integratedOnly: true);
+            foreach (var scan in ms1 ? xic.Ms1Scans : xic.Ms2Scans)
+            {
+                var rt = index[scan].RetentionTime;
+                if (rt >= from && rt <= to)
+                    perScan.TryAdd(scan, 0);
+            }
+            var claims = (ms1 ? xic.Ms1Claims : xic.Ms2Claims)!;
+            for (var i = 0; i < claims.Peaks.Length; i++)
+            {
+                if (counted.Add(claims.Peaks[i]))
+                {
+                    var scan = PeakClaims.ScanOf(claims.Peaks[i]);
+                    perScan[scan] = perScan.GetValueOrDefault(scan) + claims.Intensities[i];
+                }
+            }
+        }
+        if (perScan.Count == 0)
+            return null;
+        var scans = perScan.Keys.Order().ToArray();
+        var values = scans.Select(s => (float)perScan[s]).ToArray();
+        var trace = Points(index, scans, values, units, double.NegativeInfinity, double.PositiveInfinity);
+        return trace.T.Length > 0 ? trace : null;
+    }
+
+    /// <summary>The precursor's integrated peak in this file, or the whole run when not limited to it.</summary>
+    private static (double From, double To) Bounds(DocPrecursor precursor, string fileName, bool integratedOnly) =>
+        integratedOnly && precursor.Peaks.TryGetValue(fileName, out var peak) && peak.HasBoundaries
+            ? (peak.Start, peak.End)
+            : (double.NegativeInfinity, double.PositiveInfinity);
 
     /// <summary>A trace's points from <paramref name="from"/> to <paramref name="to"/> minutes, inclusive.</summary>
     private static (double[] T, double[] Y) Points(ScanIndex index, int[] scans, float[] values, IntensityUnits units, double from, double to)
