@@ -47,13 +47,13 @@ public partial class MainWindow
             case 1 when signals is not null:
                 grid = HeatLevel == 1 ? signals.Ms1Fraction : signals.Ms2Fraction;
                 values = grid.Values;
-                label = HeatLevel == 1 ? "fraction of binned signal assigned" : "fraction of scan signal assigned";
+                label = HeatLevel == 1 ? "Fraction of binned signal assigned" : "Fraction of scan signal assigned";
                 break;
             case 2 when signals is not null:
                 // MS2 only (OnHeatValueChanged): the peptides co-isolated in each window.
                 grid = signals.Ms2Count;
                 values = grid.Values;
-                label = "peptides per spectrum";
+                label = "Peptides per spectrum";
                 break;
             case 1 or 2:
                 plot.Title(_document.Precursors.Count == 0 ? "Needs a Skyline document with results" : "Measuring document signals...");
@@ -62,7 +62,8 @@ public partial class MainWindow
             default:
                 grid = HeatLevel == 1 ? _run.Heatmaps.Ms1 : _run.Heatmaps.Ms2;
                 values = grid.For(Units);
-                label = (log ? "log10 " : "") + (HeatLevel == 1 ? "binned " : "scan ") + (Units == Core.Data.IntensityUnits.Ions ? "ions" : "intensity");
+                label = (log ? "Log10 " : "") + (HeatLevel == 1 ? "binned " : "scan ") + (Units == Core.Data.IntensityUnits.Ions ? "ions" : "intensity");
+                label = char.ToUpperInvariant(label[0]) + label[1..];
                 break;
         }
         if (grid.IsEmpty)
@@ -73,7 +74,7 @@ public partial class MainWindow
         }
 
         var heat = plot.Add.Heatmap(ToDisplay(values, log));
-        heat.Colormap = new ScottPlot.Colormaps.Viridis();
+        heat.Colormap = Glimpse.Plotting.FigureStyle.HeatmapColormap();
         heat.NaNCellColor = Colors.Transparent;
         heat.Extent = new CoordinateRect(left: grid.RtLow, right: grid.RtHigh, bottom: grid.MzLow, top: grid.MzHigh);
         _colorBar = plot.Add.ColorBar(heat);
