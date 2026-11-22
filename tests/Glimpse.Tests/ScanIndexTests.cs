@@ -210,6 +210,24 @@ public class ScanIndexTests
         Assert.True(observer.Seen.Count <= 21);
     }
 
+    [Fact]
+    public void AnObserverThatFailsStopsTheReadersBeforeThePassReturns()
+    {
+        // Slow readers (5 ms a spectrum) and an observer that fails at the 5th spectrum. The readers are
+        // still busy, and some blocked on a full queue, when it fails: the pass must cancel them and wait,
+        // or it would hang, or return while they still read a file the caller is about to close.
+        var (source, _) = Dia(50);
+        var slow = Enumerable.Range(0, 3).Select(_ => new SlowSource(Dia(50).Item1)).ToArray();
+        var failing = new OrderObserver { ThrowAfter = 5 };
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            ScanIndexBuilder.Build(new SlowSource(source), false, new IScanObserver[] { failing }, extraReaders: slow));
+        Assert.Equal("observer failed", error.Message);
+        var readsWhenBuildReturned = slow.Sum(s => s.Reads);
+        Thread.Sleep(100);
+        Assert.Equal(readsWhenBuildReturned, slow.Sum(s => s.Reads));   // nothing still reading
+        Assert.True(readsWhenBuildReturned < 3 * 50);                    // and they stopped early
+    }
+
     private sealed class OrderObserver : IScanObserver
     {
         public List<int> Seen { get; } = new();
@@ -220,6 +238,8 @@ public class ScanIndexTests
 
         public CancellationTokenSource? Cancel { get; init; }
 
+        public int ThrowAfter { get; init; } = -1;
+
         public void Begin(int spectrumCount, double rtFirst, double rtLast)
         {
         }
@@ -229,9 +249,41 @@ public class ScanIndexTests
             Seen.Add(spectrum.Header.Index);
             if (Seen.Count == CancelAfter)
                 Cancel?.Cancel();
+            if (Seen.Count == ThrowAfter)
+                throw new InvalidOperationException("observer failed");
         }
 
         public void End() => Ended = true;
+    }
+
+    /// <summary>A copy of the file whose reader takes 5 ms a spectrum, counting reads safely across threads.</summary>
+    private sealed class SlowSource(FakeSource inner) : IMsDataSource
+    {
+        private int _reads;
+
+        public int Reads => Volatile.Read(ref _reads);
+
+        public string FilePath => inner.FilePath;
+
+        public int SpectrumCount => inner.SpectrumCount;
+
+        public RunInfo Run => inner.Run;
+
+        public bool CanVendorCentroid => false;
+
+        public SpectrumData ReadSpectrum(int index, bool centroid)
+        {
+            Thread.Sleep(5);
+            var s = inner.ReadSpectrum(index, centroid);
+            Interlocked.Increment(ref _reads);
+            return s;
+        }
+
+        public double ReadRetentionTime(int index) => inner.ReadRetentionTime(index);
+
+        public void Dispose()
+        {
+        }
     }
 
     /// <summary>A copy of the file whose reader cannot read one scan.</summary>
