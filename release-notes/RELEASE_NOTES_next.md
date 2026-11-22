@@ -13,7 +13,9 @@ signal belongs to which peptide.
   it labeled and colored by peptide. The label source can be the document's transitions, the library
   spectrum, or all ions of the chosen types and charges.
 - XICs for any number of selected peptides or proteins (no top-N limit), summed, per protein or per
-  peptide. Clicking a peptide's trace opens its spectrum with that peptide in focus.
+  peptide. Clicking a peptide's trace opens its spectrum with that peptide in focus. While the TIC (or
+  another whole-run trace) is drawn, selecting another protein or peptide keeps the whole run in view;
+  XICs drawn alone are zoomed to. Thousands of per-peptide traces stay legible.
 - A properties panel with the file, acquisition, focused-peptide and library-match details.
 - Follows the selection in Skyline's Targets view.
 - The chromatogram is drawn while a data file is read, so a long run shows its TIC from the first seconds.

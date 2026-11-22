@@ -78,11 +78,12 @@ public sealed class MultiTracePlottable : IPlottable
     }
 
     /// <summary>
-    /// Opacity of each trace: opaque up to 20 traces, then falling as 1/sqrt(count) so overlapping
-    /// traces read as a density, but never below 40 of 255.
+    /// Opacity of each trace: opaque up to 20 traces, then falling as count^-1/4 so overlapping traces
+    /// read as a density, but never below 150 of 255. Peptide peaks are narrow and rarely overlap, so a
+    /// lower floor (40 once) left thousands of 1-pixel traces too faint to see.
     /// </summary>
     internal static byte AlphaFor(int traceCount) =>
-        (byte)Math.Clamp(255 * Math.Sqrt(20.0 / Math.Max(20, traceCount)), 40, 255);
+        (byte)Math.Clamp(255 * Math.Pow(20.0 / Math.Max(20, traceCount), 0.25), 150, 255);
 
     private void BuildPath(TraceLine t, SKPath path)
     {

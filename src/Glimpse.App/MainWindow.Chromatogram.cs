@@ -63,8 +63,9 @@ public partial class MainWindow
     }
 
     /// <param name="autoscale">
-    /// Rescale: the time axis to the selected peptides' XICs (up to 50 of them), else to the whole run;
-    /// intensity from zero. Without it the current zoom is kept.
+    /// Rescale: the time axis to the whole run, or to the selected peptides' XICs when they are drawn
+    /// without the TIC, base peak or assigned trace (<see cref="ChromatogramTimeAxis"/>); intensity from
+    /// zero. Without it the current zoom is kept.
     /// </param>
     /// <param name="fullRun">With <paramref name="autoscale"/>, show the whole run even with XICs (Reset zoom).</param>
     private void RefreshChromatogram(bool autoscale, bool fullRun = false)
@@ -125,20 +126,11 @@ public partial class MainWindow
         if (autoscale)
         {
             plot.Axes.AutoScale();
-            var (rtFirst, rtLast) = (_run.Index.RtFirst, _run.Index.RtLast);
-            if (hasXics && xics.Count <= 50 && !fullRun)
-            {
-                // Zoom the time axis to the selection, within the run.
-                var t0 = xics.Where(x => x.Times.Length > 0).Select(x => x.Times[0]).DefaultIfEmpty(rtFirst).Min();
-                var t1 = xics.Where(x => x.Times.Length > 0).Select(x => x.Times[^1]).DefaultIfEmpty(rtLast).Max();
-                var pad = Math.Max(0.2, (t1 - t0) * 0.1);
-                plot.Axes.SetLimitsX(Math.Max(rtFirst, t0 - pad), Math.Min(rtLast, t1 + pad));
-            }
-            else if (rtLast > rtFirst)
-            {
-                // The whole run, first scan to last: AutoScale's margins would add time before and after it.
-                plot.Axes.SetLimitsX(rtFirst, rtLast);
-            }
+            // The whole run while the TIC or another run trace is drawn; XICs on their own, their span.
+            // Set exactly: AutoScale's margins would add time before and after the run.
+            var (low, high) = ChromatogramTimeAxis.Range(_run.Index.RtFirst, _run.Index.RtLast, xics, hasRunTraces, fullRun);
+            if (high > low)
+                plot.Axes.SetLimitsX(low, high);
             plot.Axes.SetLimitsY(0, plot.Axes.GetLimits(plot.Axes.Bottom, plot.Axes.Left).Top, plot.Axes.Left);
             if (separateXicAxis)
                 plot.Axes.SetLimitsY(0, plot.Axes.GetLimits(plot.Axes.Bottom, plot.Axes.Right).Top, plot.Axes.Right);

@@ -19,13 +19,14 @@ Glimpse runs as a Skyline External Tool. It reads the document's targets, transi
 peak boundaries from the running Skyline, opens the data file of the replicate Skyline is showing, and
 lets you browse that file with every peak traced back to the peptide that explains it.
 
-![Glimpse with an Astral DIA run: a summed XIC over the MS1 TIC, and an MS1 spectrum with each peak labeled by its peptide](docs/images/overview-ms1.png)
+![Glimpse with an Astral DIA run: MS1 XICs of all 60,161 document peptides, zoomed to two minutes, and an MS1 spectrum with each peak labeled by its peptide](docs/images/overview.png)
 
-*An Orbitrap Astral DIA run against a 69,000-precursor document. Top: the MS1 TIC (gray) with the
-summed XIC of the peptides selected in Skyline (orange). Bottom: the MS1 spectrum at the dashed line,
-each peak colored and labeled by the peptide it belongs to, with the 558 peptides eluting there listed
-on the right. Left: the document's proteins and the current selection. Right: the properties of the
-file and spectrum.*
+*An Orbitrap Astral DIA run against a 69,000-precursor document, with every protein selected. Top: the
+MS1 XICs of all 60,161 peptides (66,209 precursor traces), zoomed to 10-12 min, each in its peptide's
+color; the highlighted trace is the one under the mouse. Bottom: the MS1 spectrum at the dashed line,
+where 716 document peptides explain 61% of the signal, each peak labeled by the peptide it belongs to.
+Left: the document's proteins and the selection. Right: the properties of the file, spectrum and
+focused peptide.*
 
 ## What you can look at
 
@@ -52,13 +53,21 @@ file and spectrum.*
   a peptide's fragment XIC is often a millionth of an MS1 TIC. Clear it to put every trace on one axis,
   so an XIC shows as the fraction of the TIC it is.
 - **Click a peptide's trace** to open the spectrum at that point, with that peptide in focus.
+- **The time axis stays on the whole run** while the TIC, base peak or assigned trace is drawn, so
+  clicking from protein to protein keeps the view. With the XICs drawn alone, a new selection of up
+  to 50 traces is zoomed to.
 
-![Per-peptide XICs of eight selected peptides, and the MS2 spectrum opened by clicking one of them](docs/images/xic-per-peptide-ms2.png)
+![Per-peptide XICs of fibrinogen gamma over the MS1 TIC, and an annotated MS2 spectrum](docs/images/xic-per-peptide-ms2.png)
 
-*Per-peptide XICs of the eight peptides selected in Skyline (MS2 fragments). Clicking the brown trace
-opened the MS2 spectrum at its apex: VYAMC[+57]QIK's fragment ions are labeled, the other peptides in
-the isolation window are dimmed, and the properties panel shows the peptide's integrated peak,
-q value, and library match.*
+*Fibrinogen gamma's 36 peptides selected in Skyline: their MS2 fragment XICs (right axis) over the
+whole-run MS1 TIC. Clicking a trace at 11.46 min opened that DIA scan: eight document peptides share
+the 3 m/z window, and TNLLQVC[+57]ER's b and y ions explain 15% of its signal. Black peaks marked `*`
+are claimed by more than one peptide.*
+
+![XICs of every peptide in the document across the whole run](docs/images/xic-every-peptide.png)
+
+*No top-N cap: all 60,161 peptides of the document, one MS1 XIC per precursor, across the 24-minute
+run (intensity zoomed to the bulk of the peaks).*
 
 - **Assigned signal.** The *Assigned* toggle draws, under the TIC, the signal claimed by document
   peptides inside their integrated peaks. Each peak counts once, however many peptides claim it
@@ -98,11 +107,16 @@ window). Click any cell to open that spectrum. Three values can be shown:
   also show m/z values, or show every ion on a shared peak.
 - **Step through scans** with the arrow keys.
 
+![MS2 spectrum zoomed to 180-1050 m/z: b and y ions of several co-isolated peptides, colored by peptide](docs/images/spectrum-ms2-labels.png)
+
+*The DIA scan above, zoomed: each fragment is colored by its peptide and named by its ion, and the
+legend gives each peptide's share of the scan's signal and the number of its ions matched.*
+
 ![Zoomed MS1 spectrum: precursor isotope peaks labeled with peptide, charge and isotope](docs/images/spectrum-ms1-labels.png)
 
-*An MS1 spectrum at 11.46 min, zoomed to 608-650 m/z: the isotope envelopes of
-ITDNMFC[+57]AGYKPDEGK 3+ (peaks 0.33 m/z apart) and NHMQYEIVIK 2+ (0.5 m/z apart), each peak named
-by its peptide, charge and isotope. Gray peaks belong to no document peptide.*
+*An MS1 spectrum at 14.80 min, zoomed to 655-672 m/z: the isotope envelopes of KANLQIDQINTDLNER 3+,
+LASTLVHLGEYQAAVDGAR 3+ and ALQQYTLEPSEKPFDLK 3+ (peaks 0.33 m/z apart), each peak named by its
+peptide, charge and isotope. Gray peaks belong to no document peptide.*
 
 ### Properties panel
 

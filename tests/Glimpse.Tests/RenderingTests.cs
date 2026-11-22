@@ -118,8 +118,10 @@ public class RenderingTests
     [Theory]
     [InlineData(1, 255)]
     [InlineData(20, 255)]
-    [InlineData(80, 127)]
-    [InlineData(10_000, 40)]
+    [InlineData(40, 214)]
+    [InlineData(80, 180)]
+    [InlineData(300, 150)]
+    [InlineData(10_000, 150)]
     public void ManyTracesBecomeTranslucent(int count, int alpha) =>
         Assert.Equal(alpha, MultiTracePlottable.AlphaFor(count));
 
