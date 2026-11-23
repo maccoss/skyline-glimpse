@@ -62,8 +62,9 @@ focused peptide.*
 
 *Fibrinogen gamma's 36 peptides selected in Skyline: their MS2 fragment XICs (right axis) over the
 whole-run MS1 TIC. Clicking a trace at 11.46 min opened that DIA scan: six document peptides share
-the 3 m/z window, and TNLLQVC[+57]ER's b and y ions explain 15% of its signal. Black peaks marked `*`
-are claimed by more than one peptide.*
+the 3 m/z window, and TNLLQVC[+57]ER's b and y ions explain 15% of its signal. Peaks marked `*` (magenta when no
+peptide is focused) are claimed by more than one peptide. No peptide is drawn black or grey: grey peaks are
+unassigned, black ones peptide-like envelopes no document peptide explains.*
 
 ![XICs of every peptide in the document across the whole run](docs/images/xic-every-peptide.png)
 

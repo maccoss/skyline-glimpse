@@ -25,7 +25,9 @@ One-sentence summary of the release (written at release time).
   and hold Hardklor settings (highest charge state, overlapping envelopes kept, minimum isotope dot product) and
   Kronik settings (mass tolerance, missed scans, fewest scans). Ion trap
   scans are not searched. In MS1 and MS2 spectra, peptide-like envelopes no document peptide explains are drawn
-  in black and labeled with their monoisotopic m/z and charge (`542.29 2+`; Settings sets the decimals). The search is saved beside the raw file as `run.hk` (Parquet: every isotope envelope
+  in black and labeled with their monoisotopic m/z and charge (`542.29 2+`; Settings sets the decimals). No
+  peptide is drawn black or grey any more: peaks shared by several peptides are magenta (they were near-black),
+  and focusing one peptide dims the others to pale versions of their own colors (they were grey). The search is saved beside the raw file as `run.hk` (Parquet: every isotope envelope
   and persistent feature), so reopening the file skips it.
 - A Settings window (toolbar *Settings...*) sets font sizes, axis frame and tick sizes, and line widths for
   every plot, and edits the ion calibration table. Settings are saved for the next session.

@@ -102,6 +102,39 @@ public class PlottingTests
         Assert.False(new StickPlottable(Array.Empty<double>(), Array.Empty<double>()).GetAxisLimits().HasArea);
     }
 
+    /// <summary>
+    /// No peptide's peaks are black (peptide-like envelopes) or grey (unassigned peaks): every palette color, the
+    /// shared-peak color and their dimmed versions are clearly colored, and dimming keeps a peptide's hue.
+    /// </summary>
+    [Fact]
+    public void NoPeptideIsDrawnBlackOrGrey()
+    {
+        static double Lightness(ScottPlot.Color c) => (Math.Max(c.R, Math.Max(c.G, c.B)) + Math.Min(c.R, Math.Min(c.G, c.B))) / 510.0;
+        static int Chroma(ScottPlot.Color c) => Math.Max(c.R, Math.Max(c.G, c.B)) - Math.Min(c.R, Math.Min(c.G, c.B));
+        static double Hue(ScottPlot.Color c)
+        {
+            double r = c.R / 255.0, g = c.G / 255.0, b = c.B / 255.0, max = Math.Max(r, Math.Max(g, b)), d = max - Math.Min(r, Math.Min(g, b));
+            var h = max == r ? (g - b) / d % 6 : max == g ? (b - r) / d + 2 : (r - g) / d + 4;
+            return (h * 60 + 360) % 360;
+        }
+        var unassigned = new StickPlottable(new[] { 1.0 }, new[] { 1.0 }).DefaultColor;
+        Assert.Equal(0, Chroma(unassigned));                               // the grey of unassigned peaks
+
+        var colors = PeptideColors.All.Append(PeptideColors.Shared).ToList();
+        Assert.Equal(19, colors.Count);
+        foreach (var c in colors)
+        {
+            Assert.True(Chroma(c) >= 35, $"{c} too grey (chroma {Chroma(c)})");
+            Assert.InRange(Lightness(c), 0.2, 0.95);                        // not black, not white
+            var dimmed = PeptideColors.Dimmed(c);
+            Assert.True(Lightness(dimmed) >= 0.75, $"{dimmed} dimmed too dark");   // well above the unassigned grey (0.60)
+            var turn = Math.Abs(Hue(c) - Hue(dimmed));
+            Assert.True(Math.Min(turn, 360 - turn) <= 10, $"{c} dimmed to {dimmed} changed hue");   // the same hue, paler
+        }
+        Assert.Equal(ScottPlot.Color.FromHex("#c800c8"), PeptideColors.Shared);
+        Assert.Equal(new ScottPlot.Color(188, 214, 232), PeptideColors.Dimmed(ScottPlot.Color.FromHex("#1f77b4")));   // 70% toward white
+    }
+
     [Fact]
     public void PeptideColorsAreStableAndSpread()
     {

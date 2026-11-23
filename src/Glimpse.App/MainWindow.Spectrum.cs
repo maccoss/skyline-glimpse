@@ -234,7 +234,8 @@ public partial class MainWindow
                 var owners = matches.Select(m => m.Owner).Distinct().ToList();
                 if (_focused is not null && !owners.Contains(_focused))
                 {
-                    colors[i] = Color.FromHex("#d0d0d0"); // dim everything but the focused peptide
+                    // Dim everything but the focused peptide, in each peptide's own hue (grey is for unassigned peaks).
+                    colors[i] = PeptideColors.Dimmed(owners.Count > 1 ? PeptideColors.Shared : PeptideColor(owners[0].Precursor.Peptide));
                     continue;
                 }
                 var shown = _focused is null ? matches : matches.Where(m => m.Owner == _focused).ToList();
@@ -253,7 +254,7 @@ public partial class MainWindow
             foreach (var e in unassigned)
             {
                 foreach (var p in e.PeakIndices)
-                    colors[p] ??= _focused is null ? PeptideLikeColor : Color.FromHex("#d0d0d0");
+                    colors[p] ??= PeptideLikeColor;   // black whether or not a peptide is focused (not a peptide)
                 var basePeak = Features.PeptideLikeEnvelopes.BasePeakIndex(e, s.Mz);
                 if (labels is not null && _focused is null && labels[basePeak] is null)
                     labels[basePeak] = Features.PeptideLikeEnvelopes.Label(e, decimals);
