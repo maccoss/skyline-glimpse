@@ -87,7 +87,9 @@ within each isolation window; DDA runs are MS1 only.
 
 The **Peptide-like** trace sums the peaks of those envelopes in each scan, next to the TIC and the Assigned
 trace: the gap between Peptide-like and Assigned is signal that looks like peptides but no document peptide
-explains, and the rest of the TIC is signal there is little chance to identify. Settings can restrict MS1 to
+explains, and the rest of the TIC is signal there is little chance to identify. In the spectrum, the
+envelopes behind that gap are drawn in black and labeled with their charge and monoisotopic mass
+(`2+ 1082.57`), next to the document peptides' colored ions; *Peptide-like* above the spectrum turns them off. Settings can restrict MS1 to
 multiply charged envelopes; MS2 counts every charge. Ion trap scans (a Stellar, a Tribrid's linear ion trap)
 are not searched: they cannot resolve the isotopes of multiply charged ions.
 

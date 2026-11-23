@@ -423,6 +423,8 @@ public partial class MainWindow : Window
             PeptideLikeCheck.IsEnabled = true;
             if (PeptideLikeCheck.IsChecked == true)
                 RefreshChromatogram(autoscale: false);
+            if (_currentScan >= 0)
+                _ = ShowSpectrumAsync(_currentScan);   // label the spectrum on screen too
         }
         catch (OperationCanceledException)
         {
@@ -511,6 +513,9 @@ public partial class MainWindow : Window
         /// <summary>A .hk file holding this run's search, read instead of searching (null when there was none).</summary>
         public string? SavedSearch { get; private init; }
 
+        /// <summary>The finder the run's search used, to find a spectrum's envelopes again for labeling it.</summary>
+        public Features.IEnvelopeFinder? EnvelopeFinder { get; private init; }
+
         /// <summary>What a .hk file for this run must have been made from.</summary>
         public Features.HkFile.Stamp SearchStamp { get; private init; } = null!;
 
@@ -539,6 +544,7 @@ public partial class MainWindow : Window
                 return new LoadedRun(index, heatmap.Result!, reader, centroid)
                 {
                     Signals = document?.Result, PeptideLikeSearch = peptideLike, SavedSearch = saved, SearchStamp = stamp,
+                    EnvelopeFinder = envelopeFinder,
                 };
             }
             catch

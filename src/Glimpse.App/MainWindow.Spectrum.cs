@@ -25,6 +25,12 @@ public partial class MainWindow
     private int _spectrumRequest;
     private SpectrumData? _spectrum;
     private SpectrumAnnotation? _annotation;
+
+    /// <summary>The spectrum's isotope envelopes that belong to persistent features (empty without a search).</summary>
+    private IReadOnlyList<Features.IsotopeEnvelope> _peptideLikeEnvelopes = Array.Empty<Features.IsotopeEnvelope>();
+
+    /// <summary>Peaks of peptide-like envelopes no document peptide explains: black, labeled with charge and mass.</summary>
+    private static readonly Color PeptideLikeColor = ScottPlot.Colors.Black;
     private PrecursorAnnotation? _focused;
     private StickPlottable? _sticks;
     private bool _suppressLegend;
@@ -156,11 +162,13 @@ public partial class MainWindow
         var settings = _settings;
         var library = _library;
         var forced = _forcedPeptide;
+        var minCharge = _glimpseSettings.PeptideLikeMs1MinCharge;
         SpectrumData spectrum;
         SpectrumAnnotation annotation;
+        IReadOnlyList<Features.IsotopeEnvelope> envelopes;
         try
         {
-            (spectrum, annotation) = await Task.Run(() =>
+            (spectrum, annotation, envelopes) = await Task.Run(() =>
             {
                 var s = run.ReadSpectrum(scan);
                 var candidates = CandidatesFor(s);
@@ -171,7 +179,10 @@ public partial class MainWindow
                     var picked = forced.Precursors.Where(p => s.Header.MsLevel < 2 || s.Header.IsolationContains(p.Mz));
                     candidates = SpectrumCandidates.DistinctMolecules(picked.Concat(candidates));
                 }
-                return (s, SpectrumAnnotator.Annotate(s, candidates, options, settings, library));
+                var found = run.PeptideLike is { } signal && run.EnvelopeFinder is { } finder
+                    ? Features.PeptideLikeEnvelopes.Persistent(signal, scan, s.Mz, s.Intensity, s.Header.Analyzer, finder, minCharge)
+                    : Array.Empty<Features.IsotopeEnvelope>();
+                return (s, SpectrumAnnotator.Annotate(s, candidates, options, settings, library), found);
             });
         }
         catch (Exception ex)
@@ -187,6 +198,7 @@ public partial class MainWindow
         var keepFocus = _focused?.Precursor;
         _spectrum = spectrum;
         _annotation = annotation;
+        _peptideLikeEnvelopes = envelopes;
         _focused = forced is not null
             ? annotation.Precursors.FirstOrDefault(a => a.Precursor.Peptide == forced)
             : keepFocus is null ? null : annotation.Precursors.FirstOrDefault(a => a.Precursor == keepFocus);
@@ -208,7 +220,8 @@ public partial class MainWindow
         var calibration = Calibration;
         var values = ions ? s.Intensity.Select(v => IntensityConversion.Convert(v, h, IntensityUnits.Ions, calibration)).ToArray() : s.Intensity;
         _sticks = new StickPlottable(s.Mz, values);
-        if (_annotation is { } a && a.Precursors.Count > 0)
+        var unassigned = UnassignedPeptideLike(s);
+        if (_annotation is { } a && (a.Precursors.Count > 0 || unassigned.Count > 0))
         {
             var colors = new Color?[s.Mz.Length];
             var labels = ShowLabelsCheck.IsChecked == true ? new string?[s.Mz.Length] : null;
@@ -233,6 +246,16 @@ public partial class MainWindow
                         : PeakLabels.For(shown[0], h.MsLevel) + (shown.Count > 1 ? "*" : "");
                     labels[i] = showMz ? $"{text} {s.Mz[i]:0.000}" : text;
                 }
+            }
+            // Peptide-like envelopes no document peptide explains: their peaks a peptide does not already color,
+            // and a label at the base peak (charge and monoisotopic mass).
+            foreach (var e in unassigned)
+            {
+                foreach (var p in e.PeakIndices)
+                    colors[p] ??= _focused is null ? PeptideLikeColor : Color.FromHex("#d0d0d0");
+                var basePeak = Features.PeptideLikeEnvelopes.BasePeakIndex(e, s.Mz);
+                if (labels is not null && _focused is null && labels[basePeak] is null)
+                    labels[basePeak] = showMz ? $"{e.Charge}+ {e.MonoMass:0.00} {s.Mz[basePeak]:0.000}" : $"{e.Charge}+ {e.MonoMass:0.00}";
             }
             _sticks.PeakColors = colors;
             _sticks.PeakLabels = labels;
@@ -259,6 +282,8 @@ public partial class MainWindow
         title += $"  {h.PeakCount:N0} peaks";
         if (_annotation is { Precursors.Count: > 0 } ann)
             title += $"  {ann.AssignedFraction:P1} assigned";
+        if (unassigned.Count > 0)
+            title += $"  {unassigned.Count:N0} peptide-like envelope{(unassigned.Count == 1 ? "" : "s")} unassigned";
         if (!string.IsNullOrEmpty(s.Details.FilterString))
             title += $"   {s.Details.FilterString}";
         SpectrumTitle.Text = title;
@@ -317,10 +342,30 @@ public partial class MainWindow
             NavigateSkyline(a.Precursor.Locator ?? a.Precursor.Peptide.Locator);
     }
 
+    /// <summary>
+    /// The spectrum's peptide-like envelopes that no document peptide explains (their base peak is not assigned),
+    /// when the Peptide-like labels are on.
+    /// </summary>
+    private List<Features.IsotopeEnvelope> UnassignedPeptideLike(SpectrumData s)
+    {
+        if (PeptideLikeLabelsCheck.IsChecked != true)
+            return new List<Features.IsotopeEnvelope>();
+        return _peptideLikeEnvelopes
+            .Where(e => _annotation?.ByPeak[Features.PeptideLikeEnvelopes.BasePeakIndex(e, s.Mz)] is not { Count: > 0 })
+            .ToList();
+    }
+
+    private void OnPeptideLikeLabelsChanged(object sender, RoutedEventArgs e)
+    {
+        if (IsLoaded)
+            RenderSpectrum();
+    }
+
     private void ClearSpectrum()
     {
         _spectrum = null;
         _annotation = null;
+        _peptideLikeEnvelopes = Array.Empty<Features.IsotopeEnvelope>();
         _focused = null;
         _sticks = null;
         SpectrumPlot.Plot.Clear();
@@ -351,6 +396,10 @@ public partial class MainWindow
                 $"{m.Ion.Label} {m.Owner.Precursor.Peptide.ModifiedSequence} ({m.Owner.Precursor.Peptide.Protein.Name}) {m.PpmError:+0.0;-0.0} ppm"));
             if (matches.Count > 4)
                 text += $"; +{matches.Count - 4} more";
+        }
+        else if (UnassignedPeptideLike(_spectrum).FirstOrDefault(env => env.PeakIndices.Contains(i)) is { } envelope)
+        {
+            text += $"  peptide-like envelope {envelope.Charge}+ {envelope.MonoMass:0.0000} (correlation {envelope.Correlation:0.000}), no document peptide";
         }
         SpectrumHoverText.Text = text;
         SpectrumHoverText.ToolTip = text;
