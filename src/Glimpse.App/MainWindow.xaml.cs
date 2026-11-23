@@ -338,7 +338,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>The isotope-envelope finder for a new run (Hardklor, with pwiz's isotope distributions).</summary>
-    private static Features.IEnvelopeFinder? CreateEnvelopeFinder() => null;
+    private static Features.IEnvelopeFinder? CreateEnvelopeFinder() => new Features.AnalyzerEnvelopeFinder(new PwizEnvelopeModel());
 
     /// <summary>Wait for the run's isotope-envelope search, then offer and draw the peptide-like trace.</summary>
     private async Task AwaitPeptideLikeAsync(LoadedRun run)

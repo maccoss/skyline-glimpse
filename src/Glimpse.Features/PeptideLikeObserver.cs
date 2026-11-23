@@ -7,8 +7,11 @@ namespace Glimpse.Features;
 /// <summary>Finds the isotope envelopes in one centroided spectrum (Hardklör, in Glimpse).</summary>
 public interface IEnvelopeFinder
 {
-    /// <summary>The envelopes in a spectrum with ascending m/z. Called from several threads at once.</summary>
-    IReadOnlyList<IsotopeEnvelope> Find(double[] mz, double[] intensity);
+    /// <summary>
+    /// The envelopes in a spectrum with ascending m/z, recorded by <paramref name="analyzer"/> (its peak widths
+    /// differ). Called from several threads at once.
+    /// </summary>
+    IReadOnlyList<IsotopeEnvelope> Find(double[] mz, double[] intensity, MassAnalyzer analyzer);
 }
 
 /// <summary>
@@ -160,7 +163,7 @@ public sealed class PeptideLikeObserver : IScanObserver, IDisposable
     {
         foreach (var spectrum in queue.GetConsumingEnumerable(token))
         {
-            var envelopes = spectrum.Mz.Length == 0 ? Array.Empty<IsotopeEnvelope>() : _finder.Find(spectrum.Mz, spectrum.Intensity);
+            var envelopes = spectrum.Mz.Length == 0 ? Array.Empty<IsotopeEnvelope>() : _finder.Find(spectrum.Mz, spectrum.Intensity, spectrum.Header.Analyzer);
             _found[spectrum.Header.Index] = ScanEnvelopes.From(envelopes, spectrum.Intensity);
         }
     }

@@ -20,7 +20,7 @@ public class PeptideLikeTests
 
         public int Calls => _calls;
 
-        public IReadOnlyList<IsotopeEnvelope> Find(double[] mz, double[] intensity)
+        public IReadOnlyList<IsotopeEnvelope> Find(double[] mz, double[] intensity, Glimpse.Core.Data.MassAnalyzer analyzer)
         {
             Interlocked.Increment(ref _calls);
             var found = new List<IsotopeEnvelope>();
