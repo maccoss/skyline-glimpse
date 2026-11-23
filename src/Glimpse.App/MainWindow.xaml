@@ -146,6 +146,9 @@
                                 <CheckBox x:Name="AssignedCheck" Content="Assigned" Margin="12,0,4,0" VerticalAlignment="Center"
                                           Checked="OnViewOptionChanged" Unchecked="OnViewOptionChanged"
                                           ToolTip="Signal in each scan that belongs to document peptides (each peak counted once)" />
+                                <CheckBox x:Name="PeptideLikeCheck" Content="Peptide-like" Margin="4,0" VerticalAlignment="Center" IsEnabled="False"
+                                          Checked="OnViewOptionChanged" Unchecked="OnViewOptionChanged"
+                                          ToolTip="Signal in isotope envelopes that persist over several scans (Hardklor and Kronik): MS1, and MS2 in DIA. The gap to Assigned is peptide-like signal no document peptide explains." />
                                 <TextBlock Text="XIC:" Margin="12,0,4,0" VerticalAlignment="Center" />
                                 <ComboBox x:Name="XicModeCombo" Width="110" SelectedIndex="0" SelectionChanged="OnXicModeChanged"
                                           ToolTip="XICs of the selected peptides: none, one summed trace, one per protein, or one per peptide (no limit)">

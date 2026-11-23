@@ -48,6 +48,19 @@
                     </DataGrid>
                 </DockPanel>
             </TabItem>
+            <TabItem Header="Peptide-like">
+                <StackPanel Margin="8">
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,10">
+                        While a file is read, Glimpse finds the isotope envelopes in every MS1 scan, and in every MS2 scan of a
+                        DIA run, with a port of Hardklor, and links them across scans with Kronik (as Bullseye does). Envelopes
+                        found in at least 3 scans (same charge, within 10 ppm, one missed scan allowed) are peptide-like; MS2
+                        envelopes are linked within each isolation window. The Peptide-like trace sums their peaks.
+                    </TextBlock>
+                    <CheckBox x:Name="PeptideLikeChargeCheck"
+                              Content="MS1: count only multiply charged envelopes (2+ and up)"
+                              ToolTip="Most persistent singly charged MS1 envelopes are contaminants. MS2 envelopes of every charge count." />
+                </StackPanel>
+            </TabItem>
         </TabControl>
     </DockPanel>
 </Window>

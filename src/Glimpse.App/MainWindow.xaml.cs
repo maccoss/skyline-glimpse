@@ -253,7 +253,8 @@ public partial class MainWindow : Window
         var documentObserver = CreateDocumentObserver(path);
         try
         {
-            var run = await Task.Run(() => LoadedRun.Load(path, centroid, documentObserver, progress, preview, cts.Token), cts.Token);
+            var finder = CreateEnvelopeFinder();
+            var run = await Task.Run(() => LoadedRun.Load(path, centroid, documentObserver, finder, progress, preview, cts.Token), cts.Token);
             if (cts.IsCancellationRequested)
             {
                 run.Dispose();
@@ -333,6 +334,46 @@ public partial class MainWindow : Window
             _ = EnsureSignalsAsync(_run.Index.FilePath);
         else
             ReportSignals(_run);
+        _ = AwaitPeptideLikeAsync(_run);
+    }
+
+    /// <summary>The isotope-envelope finder for a new run (Hardklor, with pwiz's isotope distributions).</summary>
+    private static Features.IEnvelopeFinder? CreateEnvelopeFinder() => null;
+
+    /// <summary>Wait for the run's isotope-envelope search, then offer and draw the peptide-like trace.</summary>
+    private async Task AwaitPeptideLikeAsync(LoadedRun run)
+    {
+        PeptideLikeCheck.IsEnabled = false;
+        if (run.PeptideLikeSearch is not { } search)
+        {
+            PeptideLikeCheck.Content = "Peptide-like";
+            return;
+        }
+        PeptideLikeCheck.Content = "Peptide-like (finding...)";
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            var signal = await search.Completion;
+            if (_run != run)
+                return;
+            run.PeptideLike = signal;
+            App.WriteLog($"Peptide-like signal for {Path.GetFileName(run.Index.FilePath)}: {signal.Features.Count:N0} persistent features "
+                + $"in {signal.Series.Count:N0} series{(signal.IsDda ? " (DDA: MS1 only)" : "")}, {clock.Elapsed.TotalSeconds:0.0} s after the pass");
+            PeptideLikeCheck.Content = "Peptide-like";
+            PeptideLikeCheck.IsEnabled = true;
+            if (PeptideLikeCheck.IsChecked == true)
+                RefreshChromatogram(autoscale: false);
+        }
+        catch (OperationCanceledException)
+        {
+            // The run was closed or replaced.
+        }
+        catch (Exception ex)
+        {
+            App.WriteLog($"Peptide-like signal failed: {ex}");
+            if (_run == run)
+                PeptideLikeCheck.Content = "Peptide-like (failed)";
+        }
     }
 
     private void OnViewOptionChanged(object sender, RoutedEventArgs e)
@@ -401,24 +442,35 @@ public partial class MainWindow : Window
         /// <summary>The document's signals in this run, once a document pass has measured them.</summary>
         public Core.Assignment.DocumentSignals? Signals { get; set; }
 
+        /// <summary>The isotope-envelope search still finishing after the pass (null without one).</summary>
+        public Features.PeptideLikeObserver? PeptideLikeSearch { get; private init; }
+
+        /// <summary>The peptide-like signal, once the search has finished.</summary>
+        public Features.PeptideLikeSignal? PeptideLike { get; set; }
+
         private PwizMsDataSource Reader { get; }
 
         public static LoadedRun Load(string path, bool centroid, Core.Assignment.DocumentSignalObserver? document,
-            IProgress<double> progress, IProgress<ScanPassPreview>? preview, CancellationToken ct)
+            Features.IEnvelopeFinder? envelopeFinder, IProgress<double> progress, IProgress<ScanPassPreview>? preview, CancellationToken ct)
         {
             var reader = PwizMsDataSource.Open(path);
             var extra = OpenExtraReaders(path);
+            // Isotope envelopes are searched on worker threads while the pass reads, and linked after it.
+            var peptideLike = envelopeFinder is null ? null : new Features.PeptideLikeObserver(envelopeFinder, cancellation: ct);
             try
             {
                 var heatmap = new IntensityHeatmapAccumulator();
                 var observers = new List<IScanObserver> { heatmap };
                 if (document is not null)
                     observers.Add(document);
+                if (peptideLike is not null)
+                    observers.Add(peptideLike);
                 var index = ScanIndexBuilder.Build(reader, centroid, observers, progress, ct, preview, extra);
-                return new LoadedRun(index, heatmap.Result!, reader, centroid) { Signals = document?.Result };
+                return new LoadedRun(index, heatmap.Result!, reader, centroid) { Signals = document?.Result, PeptideLikeSearch = peptideLike };
             }
             catch
             {
+                peptideLike?.Dispose();
                 reader.Dispose();
                 throw;
             }
@@ -494,6 +546,7 @@ public partial class MainWindow : Window
 
         public void Dispose()
         {
+            PeptideLikeSearch?.Dispose();   // stops a search still running
             lock (_readLock)
                 Reader.Dispose();
         }

@@ -57,6 +57,7 @@ public partial class SettingsWindow : Window
         AnalyzerColumn.ItemsSource = new[] { MassAnalyzer.Orbitrap, MassAnalyzer.Astral, MassAnalyzer.IonTrap };
         ShowAlphas(settings.IonCalibration);
         AlphaGrid.ItemsSource = _alphas;
+        PeptideLikeChargeCheck.IsChecked = settings.PeptideLikeMs1MinCharge >= 2;
     }
 
     /// <summary>The settings as edited, once OK is pressed.</summary>
@@ -114,7 +115,12 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        Result = new GlimpseSettings { Figures = figures, IonCalibration = entries }.Validated();
+        Result = new GlimpseSettings
+        {
+            Figures = figures,
+            IonCalibration = entries,
+            PeptideLikeMs1MinCharge = PeptideLikeChargeCheck.IsChecked == true ? 2 : 1,
+        }.Validated();
         DialogResult = true;
     }
 

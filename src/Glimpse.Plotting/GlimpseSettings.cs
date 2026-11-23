@@ -88,6 +88,12 @@ public sealed record GlimpseSettings
     /// <summary>α per instrument model and analyzer, starting from Hsu et al. 2025 (Table 1).</summary>
     public IReadOnlyList<AlphaEntry> IonCalibration { get; init; } = IonCalibrationTable.Published;
 
+    /// <summary>
+    /// Lowest charge of an MS1 isotope envelope that counts as peptide-like: 1 counts every envelope, 2 only
+    /// multiply charged ones (most persistent 1+ envelopes are contaminants). MS2 counts every charge.
+    /// </summary>
+    public int PeptideLikeMs1MinCharge { get; init; } = 1;
+
     public static string DefaultPath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SkylineGlimpse", "settings.json");
 
@@ -147,6 +153,7 @@ public sealed record GlimpseSettings
     public GlimpseSettings Validated() => this with
     {
         Figures = (Figures ?? FigureSettings.Default).Validated(),
+        PeptideLikeMs1MinCharge = Math.Clamp(PeptideLikeMs1MinCharge, 1, 2),
         IonCalibration = IonCalibration is null
             ? IonCalibrationTable.Published
             : IonCalibration.Where(e => e is not null && !string.IsNullOrWhiteSpace(e.Instrument) && double.IsFinite(e.Alpha) && e.Alpha > 0)

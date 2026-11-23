@@ -37,6 +37,7 @@ public sealed class SettingsTests : IDisposable
                 d.StickWidth, d.AssignedStickWidth,
             });
         Assert.True(d.ScaleWithPlotSize);
+        Assert.Equal(1, GlimpseSettings.Default.PeptideLikeMs1MinCharge);   // every MS1 charge counts
         Assert.Same(IonCalibrationTable.Published, GlimpseSettings.Default.IonCalibration);
         Assert.EndsWith(Path.Combine("SkylineGlimpse", "settings.json"), GlimpseSettings.DefaultPath);
     }
@@ -48,6 +49,7 @@ public sealed class SettingsTests : IDisposable
         {
             Figures = FigureSettings.Default with { AxisLabelFontSize = 24, TraceWidth = 3.5f, ScaleWithPlotSize = false },
             IonCalibration = new[] { new AlphaEntry("Orbitrap Astral", MassAnalyzer.Astral, 1.4), new AlphaEntry("Stellar", MassAnalyzer.IonTrap, 1.0) },
+            PeptideLikeMs1MinCharge = 2,
         };
         var path = File("nested/settings.json");
         GlimpseSettings.Default.Save(path);
@@ -56,6 +58,7 @@ public sealed class SettingsTests : IDisposable
 
         Assert.Equal(settings.Figures, loaded.Figures);
         Assert.Equal(settings.IonCalibration, loaded.IonCalibration);
+        Assert.Equal(2, loaded.PeptideLikeMs1MinCharge);
         var text = System.IO.File.ReadAllText(path);
         Assert.Contains("\"IonTrap\"", text);   // analyzers by name, not number
         Assert.Contains("\n  \"Figures\"", text.ReplaceLineEndings("\n"));   // indented, for editing by hand
@@ -115,6 +118,9 @@ public sealed class SettingsTests : IDisposable
         Assert.Equal(20f, s.Figures.TraceWidth);
         Assert.Equal(15f, s.Figures.LegendFontSize);    // not in the file: the default
         Assert.True(s.Figures.ScaleWithPlotSize);
+        Assert.Equal(1, s.PeptideLikeMs1MinCharge);    // not in the file: the default
+        Assert.Equal(2, (GlimpseSettings.Default with { PeptideLikeMs1MinCharge = 5 }).Validated().PeptideLikeMs1MinCharge);
+        Assert.Equal(1, (GlimpseSettings.Default with { PeptideLikeMs1MinCharge = 0 }).Validated().PeptideLikeMs1MinCharge);
         Assert.Equal(new[] { new AlphaEntry("Orbitrap Astral", MassAnalyzer.Astral, 1.5) }, s.IonCalibration);
 
         System.IO.File.WriteAllText(File("notable.json"), """{ "IonCalibration": null }""");
