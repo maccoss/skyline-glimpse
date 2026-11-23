@@ -27,6 +27,10 @@ public sealed class PwizEnvelopeModel : IEnvelopeModel
     /// <summary>Mass between successive isotope peaks of a peptide (Da), from Monocle (Schweppe and colleagues).</summary>
     public const double IsotopeSpacing = 1.00286864;
 
+    /// <summary>What distributions this model gives, as text: a change makes saved searches (.hk files) stale.</summary>
+    public static string Description { get; } = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+        $"pwiz isotope tables, 13C {Carbon13Abundance}, spacing {IsotopeSpacing}");
+
     // Fine-structure terms below this probability are dropped. The library keeps peaks above 1% of the most
     // abundant, which for a 35 kDa molecule is still above 1e-4, so the terms dropped here do not matter.
     private const double ProbabilityCutoff = 1e-9;

@@ -7,41 +7,6 @@ namespace Glimpse.Tests;
 /// <summary>The peptide-like signal: envelopes found on worker threads during the pass, linked after it.</summary>
 public class PeptideLikeTests
 {
-    /// <summary>
-    /// Finds an envelope wherever a spectrum has a peak at one of the given m/z values: that peak and the next
-    /// <c>Count - 1</c> peaks, at the given charge.
-    /// </summary>
-    private sealed class PatternFinder : IEnvelopeFinder
-    {
-        private readonly (double FirstMz, int Charge, int Count)[] _patterns;
-        private int _calls;
-
-        public PatternFinder(params (double FirstMz, int Charge, int Count)[] patterns) => _patterns = patterns;
-
-        public int Calls => _calls;
-
-        /// <summary>Analyzers it refuses, as the real finder refuses the ion trap.</summary>
-        public Glimpse.Core.Data.MassAnalyzer[] Refused { get; init; } = Array.Empty<Glimpse.Core.Data.MassAnalyzer>();
-
-        public bool CanSearch(Glimpse.Core.Data.MassAnalyzer analyzer) => !Refused.Contains(analyzer);
-
-        public IReadOnlyList<IsotopeEnvelope> Find(double[] mz, double[] intensity, Glimpse.Core.Data.MassAnalyzer analyzer)
-        {
-            Interlocked.Increment(ref _calls);
-            var found = new List<IsotopeEnvelope>();
-            foreach (var (first, charge, count) in _patterns)
-            {
-                var i = Array.FindIndex(mz, m => Math.Abs(m - first) < 0.001);
-                if (i < 0 || i + count > mz.Length)
-                    continue;
-                var peaks = Enumerable.Range(i, count).ToArray();
-                found.Add(new IsotopeEnvelope((first - 1.00727649) * charge, charge, (float)peaks.Sum(p => intensity[p]),
-                    mz[i], 0.99, mz[i], mz[i + count - 1], peaks));
-            }
-            return found;
-        }
-    }
-
     private static PeptideLikeSignal Run(FakeSource source, IEnvelopeFinder finder)
     {
         using var observer = new PeptideLikeObserver(finder, workers: 3);
@@ -62,7 +27,7 @@ public class PeptideLikeTests
             if (s == 0) { mz.Add(800); intensity.Add(1000); }
             source.Ms1(1 + s * 0.1, mz.ToArray(), intensity.ToArray());
         }
-        var signal = Run(source, new PatternFinder((500.0, 2, 3), (700, 1, 1), (800, 3, 1)));
+        var signal = Run(source, new PatternEnvelopeFinder((500.0, 2, 3), (700, 1, 1), (800, 3, 1)));
 
         Assert.Equal(new[] { 215.0, 215, 215, 175 }, signal.IntensityByScan());            // 175 + the 1+ at 700
         Assert.Equal(new[] { 175.0, 175, 175, 175 }, signal.IntensityByScan(ms1MinCharge: 2));
@@ -83,7 +48,7 @@ public class PeptideLikeTests
         var source = new FakeSource();
         for (var s = 0; s < 3; s++)
             source.Ms1(1 + s * 0.1, new[] { 500.0, 500.5, 501.0, 502.0 }, new[] { 100.0, 50, 25, 5 });
-        var signal = Run(source, new PatternFinder((500.0, 2, 3), (501.0, 1, 2)));
+        var signal = Run(source, new PatternEnvelopeFinder((500.0, 2, 3), (501.0, 1, 2)));
         Assert.Equal(180.0, signal.IntensityByScan()[0]);   // 100 + 50 + 25 + 5, the shared 25 once
     }
 
@@ -99,7 +64,7 @@ public class PeptideLikeTests
             source.Ms2(rt + 0.01, 400, 410, new[] { 300.0, 301.0 }, new[] { 80.0, 20 });
             source.Ms2(rt + 0.02, 410, 420, c == 1 ? new[] { 600.0 } : new[] { 650.0 }, new[] { 9.0 });
         }
-        var finder = new PatternFinder((300.0, 1, 2), (600.0, 1, 1));
+        var finder = new PatternEnvelopeFinder((300.0, 1, 2), (600.0, 1, 1));
         var signal = Run(source, finder);
 
         var tic = signal.IntensityByScan(ms1MinCharge: 2);
@@ -118,7 +83,7 @@ public class PeptideLikeTests
             .Ms2(1.01, 400, 410, new[] { 300.0 }, new[] { 5.0 })
             .Ms2(1.02, 500, 510, new[] { 300.0 }, new[] { 5.0 })
             .Ms2(1.03, 400, 410, new[] { 300.0 }, new[] { 5.0 });
-        var finder = new PatternFinder();
+        var finder = new PatternEnvelopeFinder();
         var signal = Run(source, finder);
         Assert.Equal(3, finder.Calls);                       // the MS1 and both 400-410 scans
         Assert.True(signal.Covers(1));
@@ -142,7 +107,7 @@ public class PeptideLikeTests
             if (i % 7 == 0)
                 source.Ms2(1 + i * 0.001 + 0.0007, lo, lo + 2, new[] { 300.0 }, new[] { 5.0 });   // some come back
         }
-        var signal = Run(source, new PatternFinder());
+        var signal = Run(source, new PatternEnvelopeFinder());
         Assert.True(signal.IsDda);
         Assert.Single(signal.Series);                                                     // MS1 only
         Assert.All(signal.Series[0], i => Assert.True(signal.Covers(i)));
@@ -160,7 +125,7 @@ public class PeptideLikeTests
             source.Ms1(1.05 + c * 0.1, new[] { 500.0 }, new[] { 10.0 }, 10f, Glimpse.Core.Data.MassAnalyzer.IonTrap);
             source.Ms2(1.07 + c * 0.1, 400, 410, new[] { 300.0 }, new[] { 5.0 }, 10f, Glimpse.Core.Data.MassAnalyzer.IonTrap);
         }
-        var finder = new PatternFinder((500.0, 2, 1)) { Refused = new[] { Glimpse.Core.Data.MassAnalyzer.IonTrap } };
+        var finder = new PatternEnvelopeFinder((500.0, 2, 1)) { Refused = new[] { Glimpse.Core.Data.MassAnalyzer.IonTrap } };
         var signal = Run(source, finder);
         Assert.Equal(3, finder.Calls);                                        // the Orbitrap scans only
         Assert.Equal(new[] { 0, 3, 6 }, Assert.Single(signal.Series));
@@ -178,7 +143,7 @@ public class PeptideLikeTests
     [Fact]
     public void AnAbandonedPassCancelsTheSearch()
     {
-        var observer = new PeptideLikeObserver(new PatternFinder(), workers: 2);
+        var observer = new PeptideLikeObserver(new PatternEnvelopeFinder(), workers: 2);
         observer.Begin(10, 0, 1);
         observer.Dispose();
         Assert.True(observer.Completion.IsCanceled);

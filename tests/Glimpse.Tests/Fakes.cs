@@ -1,3 +1,4 @@
+using Glimpse.Features;
 using Glimpse.Core.Data;
 using Glimpse.Core.Document;
 using Glimpse.Core.Library;
@@ -99,3 +100,39 @@ internal sealed class FakeLibrary : ISpectralLibrary
     public LibrarySpectrum? Find(string modifiedSequence, int charge) =>
         _entries.TryGetValue((modifiedSequence, charge), out var e) ? e : null;
 }
+
+/// <summary>
+/// Finds an envelope wherever a spectrum has a peak at one of the given m/z values: that peak and the next
+/// <c>Count - 1</c> peaks, at the given charge.
+/// </summary>
+internal sealed class PatternEnvelopeFinder : IEnvelopeFinder
+{
+    private readonly (double FirstMz, int Charge, int Count)[] _patterns;
+    private int _calls;
+
+    public PatternEnvelopeFinder(params (double FirstMz, int Charge, int Count)[] patterns) => _patterns = patterns;
+
+    public int Calls => _calls;
+
+    /// <summary>Analyzers it refuses, as the real finder refuses the ion trap.</summary>
+    public Glimpse.Core.Data.MassAnalyzer[] Refused { get; init; } = Array.Empty<Glimpse.Core.Data.MassAnalyzer>();
+
+    public bool CanSearch(Glimpse.Core.Data.MassAnalyzer analyzer) => !Refused.Contains(analyzer);
+
+    public IReadOnlyList<IsotopeEnvelope> Find(double[] mz, double[] intensity, Glimpse.Core.Data.MassAnalyzer analyzer)
+    {
+        Interlocked.Increment(ref _calls);
+        var found = new List<IsotopeEnvelope>();
+        foreach (var (first, charge, count) in _patterns)
+        {
+            var i = Array.FindIndex(mz, m => Math.Abs(m - first) < 0.001);
+            if (i < 0 || i + count > mz.Length)
+                continue;
+            var peaks = Enumerable.Range(i, count).ToArray();
+            found.Add(new IsotopeEnvelope((first - 1.00727649) * charge, charge, (float)peaks.Sum(p => intensity[p]),
+                mz[i], 0.99, mz[i], mz[i + count - 1], peaks));
+        }
+        return found;
+    }
+}
+

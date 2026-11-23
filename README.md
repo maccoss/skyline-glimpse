@@ -96,8 +96,15 @@ Hardklor) and spaces isotope peaks by 1.00286864 Da, Monocle's averagine spacing
 2021), which fits observed isotope peaks within about 1 ppm. With Hardklor's own spacing the port finds exactly
 Hardklor.exe's envelopes; with Monocle's it agrees with Skyline's Hardklor configuration on about 98%.
 
-On a 174,000-spectrum Orbitrap Astral Zoom DIA run the search finished 6 s after the pass, finding 73% of the
+On a 174,000-spectrum Orbitrap Astral Zoom DIA run the search finished 6 s after the pass, finding 72% of the
 MS1 signal and 38% of the MS2 signal peptide-like.
+
+The search is saved beside the raw file as `run.hk` (or in `%LOCALAPPDATA%\SkylineGlimpse\cache` when that
+folder cannot be written), and reopening the file reads it instead of searching again. It is a Parquet file
+with one row per isotope envelope: scan, MS level, retention time, series (MS1 or DIA window), monoisotopic
+mass, charge, intensity, base peak m/z, correlation, m/z range, the persistent feature it belongs to, and its
+scan's peptide-like signal. It is replaced when the raw file or the search settings change. For the run above
+it is 396 MB, written in 4 s and read in 5 s.
 
 ### Heatmaps
 

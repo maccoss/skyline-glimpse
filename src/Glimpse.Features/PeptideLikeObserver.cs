@@ -204,22 +204,24 @@ public sealed class PeptideLikeObserver : IScanObserver, IDisposable
 /// </summary>
 public sealed class ScanEnvelopes
 {
-    private ScanEnvelopes(EnvelopeKey[] keys, int[] peakIndex, float[] peakIntensity, int[] start, ushort[] members)
+    internal ScanEnvelopes(EnvelopeKey[] keys, EnvelopeDetail[] details, int[] peakIndex, float[] peakIntensity, int[] start, ushort[] members)
     {
         Keys = keys;
+        Details = details;
         PeakIndex = peakIndex;
         PeakIntensity = peakIntensity;
-        _start = start;
-        _members = members;
+        Start = start;
+        Members = members;
     }
 
-    private readonly int[] _start;
-    private readonly ushort[] _members;
-
-    public static ScanEnvelopes Empty { get; } = new(Array.Empty<EnvelopeKey>(), Array.Empty<int>(), Array.Empty<float>(), new[] { 0 }, Array.Empty<ushort>());
+    public static ScanEnvelopes Empty { get; } = new(Array.Empty<EnvelopeKey>(), Array.Empty<EnvelopeDetail>(),
+        Array.Empty<int>(), Array.Empty<float>(), new[] { 0 }, Array.Empty<ushort>());
 
     /// <summary>Mass, charge and intensity of each envelope, in the order found.</summary>
     public EnvelopeKey[] Keys { get; }
+
+    /// <summary>The rest of each envelope's Hardklör record (base peak, correlation, m/z range).</summary>
+    public EnvelopeDetail[] Details { get; }
 
     /// <summary>The distinct peaks the envelopes cover: their index in the spectrum, ascending.</summary>
     public int[] PeakIndex { get; }
@@ -227,31 +229,48 @@ public sealed class ScanEnvelopes
     /// <summary>The intensity of each of those peaks.</summary>
     public float[] PeakIntensity { get; }
 
+    /// <summary>Where each envelope's peaks start in <see cref="Members"/> (one more entry than envelopes).</summary>
+    internal int[] Start { get; }
+
+    /// <summary>Each envelope's peaks, as positions in <see cref="PeakIndex"/>.</summary>
+    internal ushort[] Members { get; }
+
     /// <summary>Positions (in <see cref="PeakIndex"/>) of envelope <paramref name="envelope"/>'s peaks.</summary>
-    public ReadOnlySpan<ushort> PeaksOf(int envelope) => _members.AsSpan(_start[envelope], _start[envelope + 1] - _start[envelope]);
+    public ReadOnlySpan<ushort> PeaksOf(int envelope) => Members.AsSpan(Start[envelope], Start[envelope + 1] - Start[envelope]);
 
     public static ScanEnvelopes From(IReadOnlyList<IsotopeEnvelope> envelopes, double[] intensity)
     {
         if (envelopes.Count == 0)
             return Empty;
         var distinct = envelopes.SelectMany(e => e.PeakIndices).Distinct().Order().ToArray();
+        return Build(
+            envelopes.Select(e => new EnvelopeKey(e.MonoMass, e.Charge, e.Intensity)).ToArray(),
+            envelopes.Select(e => new EnvelopeDetail(e.BasePeakMz, (float)e.Correlation, e.LowMz, e.HighMz)).ToArray(),
+            envelopes.Select(e => e.PeakIndices).ToArray(),
+            distinct, distinct.Select(i => (float)intensity[i]).ToArray());
+    }
+
+    /// <summary>The compact form, from each envelope's peak indices and the scan's distinct envelope peaks.</summary>
+    internal static ScanEnvelopes Build(EnvelopeKey[] keys, EnvelopeDetail[] details, int[][] peaksOfEach, int[] distinct, float[] distinctIntensity)
+    {
         if (distinct.Length > ushort.MaxValue)
             throw new InvalidOperationException($"{distinct.Length} envelope peaks in one spectrum.");
-        var start = new int[envelopes.Count + 1];
-        var members = new ushort[envelopes.Sum(e => e.PeakIndices.Length)];
+        var start = new int[keys.Length + 1];
+        var members = new ushort[peaksOfEach.Sum(p => p.Length)];
         var k = 0;
-        for (var e = 0; e < envelopes.Count; e++)
+        for (var e = 0; e < keys.Length; e++)
         {
             start[e] = k;
-            foreach (var p in envelopes[e].PeakIndices)
+            foreach (var p in peaksOfEach[e])
                 members[k++] = (ushort)Array.BinarySearch(distinct, p);
         }
         start[^1] = k;
-        return new ScanEnvelopes(
-            envelopes.Select(e => new EnvelopeKey(e.MonoMass, e.Charge, e.Intensity)).ToArray(),
-            distinct, distinct.Select(i => (float)intensity[i]).ToArray(), start, members);
+        return new ScanEnvelopes(keys, details, distinct, distinctIntensity, start, members);
     }
 }
+
+/// <summary>An envelope's base peak m/z, correlation with its model, and m/z range (Hardklör's report).</summary>
+public readonly record struct EnvelopeDetail(double BasePeakMz, float Correlation, double LowMz, double HighMz);
 
 /// <summary>
 /// The peptide-like signal of a run: per scan, the intensity of the peaks belonging to persistent isotope
@@ -266,7 +285,8 @@ public sealed class PeptideLikeSignal
 
     internal PeptideLikeSignal(
         ScanHeader[] headers, IReadOnlyDictionary<int, ScanEnvelopes> envelopes, IReadOnlyDictionary<int, int[]> featureOf,
-        IReadOnlyList<(int Series, PersistentFeature Feature)> features, IReadOnlyList<int[]> series, bool dda)
+        IReadOnlyList<(int Series, PersistentFeature Feature)> features, IReadOnlyList<int[]> series, bool dda,
+        double[]? savedAll = null, double[]? savedMultiplyCharged = null)
     {
         _headers = headers;
         _envelopes = envelopes;
@@ -274,7 +294,20 @@ public sealed class PeptideLikeSignal
         Features = features;
         Series = series;
         IsDda = dda;
+        if (savedAll is not null && savedMultiplyCharged is not null)
+        {
+            // Read from a .hk file, which keeps each scan's totals but not the envelopes' peaks.
+            HasPeaks = false;
+            _intensityByMinCharge[1] = savedAll;
+            _intensityByMinCharge[2] = savedMultiplyCharged;
+        }
     }
+
+    /// <summary>
+    /// True when each envelope's peaks are known (a search made in this session). A signal read from a .hk file
+    /// has each scan's totals for MS1 1+ and 2+ only, and no peaks.
+    /// </summary>
+    public bool HasPeaks { get; } = true;
 
     /// <summary>The persistent features and the series (0: MS1; then each DIA window) each was found in.</summary>
     public IReadOnlyList<(int Series, PersistentFeature Feature)> Features { get; }
@@ -284,6 +317,16 @@ public sealed class PeptideLikeSignal
 
     /// <summary>True when MS2 scans were left out because the run is DDA.</summary>
     public bool IsDda { get; }
+
+    internal ScanHeader[] Headers => _headers;
+
+    internal IReadOnlyDictionary<int, ScanEnvelopes> Envelopes => _envelopes;
+
+    internal IReadOnlyDictionary<int, int[]> FeatureOf => _featureOf;
+
+    /// <summary>Envelopes found, and isotope peaks they cover, over all searched scans.</summary>
+    public (long Envelopes, long PeakRefs) Counts =>
+        (_envelopes.Values.Sum(e => (long)e.Keys.Length), _envelopes.Values.Sum(e => (long)Enumerable.Range(0, e.Keys.Length).Sum(k => e.PeaksOf(k).Length)));
 
     /// <summary>True when the scan was searched for envelopes (MS1 scans, and DIA MS2 scans, not from an ion trap).</summary>
     public bool Covers(int scan) => _featureOf.ContainsKey(scan);
@@ -302,6 +345,8 @@ public sealed class PeptideLikeSignal
         {
             if (_intensityByMinCharge.TryGetValue(ms1MinCharge, out var cached))
                 return cached;
+            if (!HasPeaks)
+                throw new InvalidOperationException($"A saved search keeps MS1 totals for 1+ and 2+ only, not {ms1MinCharge}+.");
             var result = new double[_headers.Length];
             Array.Fill(result, double.NaN);
             foreach (var (scan, ids) in _featureOf)

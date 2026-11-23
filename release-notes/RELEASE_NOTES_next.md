@@ -22,7 +22,8 @@ One-sentence summary of the release (written at release time).
   while the file is read with a port of Hardklor and linked with Bullseye's Kronik (MS1, and MS2 within each
   DIA isolation window). Next to the TIC and the Assigned trace it shows how much signal looks like peptides
   and how much of that the document explains. Settings can count only multiply charged MS1 envelopes. Ion trap
-  scans are not searched.
+  scans are not searched. The search is saved beside the raw file as `run.hk` (Parquet: every isotope envelope
+  and persistent feature), so reopening the file skips it.
 - A Settings window (toolbar *Settings...*) sets font sizes, axis frame and tick sizes, and line widths for
   every plot, and edits the ion calibration table. Settings are saved for the next session.
 - Plot text and lines grow with the plot: a maximized window, or a large screen at 100% scaling, shows the

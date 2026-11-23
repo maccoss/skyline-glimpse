@@ -130,19 +130,22 @@ public static class Kronik
                 continue;
             var id = features.Count;
             featureOf[scan][index] = id;
-            var sum = seed.Intensity;
             foreach (var (s, i) in matched)
             {
                 used[s][i] = true;
                 featureOf[s][i] = id;
-                sum += scans[s][i].Intensity;
             }
-            features.Add(new PersistentFeature(seed.MonoMass, seed.Charge, scan, seed.Intensity, first, last, matched.Count + 1, sum));
+            var members = matched.Select(m => (m.Scan, scans[m.Scan][m.Index].Intensity)).Append((scan, seed.Intensity));
+            features.Add(new PersistentFeature(seed.MonoMass, seed.Charge, scan, seed.Intensity, first, last, matched.Count + 1, SummedIntensity(members)));
         }
         return new KronikResult(features, featureOf);
     }
 
     private const double Proton = 1.00727649;   // CKronik2's PROTON
+
+    /// <summary>A feature's summed intensity: its envelopes in scan order, added in double precision.</summary>
+    internal static float SummedIntensity(IEnumerable<(int Scan, float Intensity)> members) =>
+        (float)members.OrderBy(m => m.Scan).Sum(m => (double)m.Intensity);
 
     private static double MzOf(double mass, int charge) => (mass + charge * Proton) / charge;
 

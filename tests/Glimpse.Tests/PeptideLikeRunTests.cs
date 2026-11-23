@@ -104,6 +104,27 @@ public class PeptideLikeRunTests
             + $"{total.TotalSeconds:0.0} s; {signal.Features.Count:N0} features in {signal.Series.Count} series (DDA {signal.IsDda}); "
             + $"peptide-like share of TIC: MS1 {Fraction(1):P1}, MS2 {Fraction(2):P1}; "
             + $"MS1 2+ only {index.IndicesOfLevel(1).Sum(i => signal.IntensityByScan(2)[i]) / index.IndicesOfLevel(1).Sum(i => index[i].TotalIonCurrent):P1}; "
-            + $"managed heap {GC.GetTotalMemory(false) / 1e6:N0} MB");
+            + $"managed heap {GC.GetTotalMemory(false) / 1e6:N0} MB; envelopes {signal.Counts.Envelopes:N0}, peak refs {signal.Counts.PeakRefs:N0}");
+
+        // The .hk file: size, and the time to write it and read it back (in a temporary folder).
+        var dir = Directory.CreateTempSubdirectory("glimpse-hk-big");
+        try
+        {
+            var hk = Path.Combine(dir.FullName, "run.hk");
+            var stamp = HkFile.Stamp.Of(path, index.Count, "timing");
+            var write = Stopwatch.StartNew();
+            HkFile.Write(hk, signal, stamp);
+            write.Stop();
+            var read = Stopwatch.StartNew();
+            var back = HkFile.TryRead(hk, stamp, index.Headers.ToArray());
+            read.Stop();
+            Assert.NotNull(back);
+            Assert.Equal(signal.IntensityByScan(), back!.IntensityByScan());
+            _out.WriteLine($".hk: {new FileInfo(hk).Length / 1e6:N0} MB, written in {write.Elapsed.TotalSeconds:0.0} s, read in {read.Elapsed.TotalSeconds:0.0} s");
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
     }
 }
