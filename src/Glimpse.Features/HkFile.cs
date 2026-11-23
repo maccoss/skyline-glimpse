@@ -127,7 +127,8 @@ public static class HkFile
         await using (var stream = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
         {
             // Zstd at its fastest level: about the compression of the default level, written some 50 times faster
-            // (Parquet.Net's default Zstd level took 268 s for an Astral run's 17 million envelopes).
+            // (Parquet.Net's default Zstd level took 268 s for an Astral run's 17 million envelopes). Skyline's report
+            // export uses Optimal (level 3); on these columns it wrote about 50% slower for no smaller file.
             await using var writer = await ParquetWriter.CreateAsync(Schema, stream, new ParquetOptions
             {
                 CompressionMethod = CompressionMethod.Zstd,
