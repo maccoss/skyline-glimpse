@@ -60,7 +60,7 @@
                     <CheckBox x:Name="PeptideLikeChargeCheck"
                               Content="MS1: count only multiply charged envelopes (2+ and up)"
                               ToolTip="Most persistent singly charged MS1 envelopes are contaminants. MS2 envelopes of every charge count." />
-                    <TextBlock Text="Changes to the Hardklor and Kronik settings apply to files opened afterwards; a saved search made with other settings is searched again."
+                    <TextBlock Text="The Hardklor and Kronik settings change the search, which runs while a file is read: after changing them Glimpse offers to read the open file again. A saved search made with other settings is searched again."
                                TextWrapping="Wrap" Margin="0,10,0,0" FontStyle="Italic" />
                     <TextBlock Text="Hardklor settings" Margin="0,12,0,4" FontWeight="SemiBold" />
                     <Grid>

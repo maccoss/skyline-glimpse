@@ -63,11 +63,12 @@ public partial class MainWindow : Window
 
     private IonCalibration CalibrationFor(string? instrumentModel) => IonCalibration.For(instrumentModel, _glimpseSettings.IonCalibration);
 
-    private void OnSettings(object sender, RoutedEventArgs e)
+    private async void OnSettings(object sender, RoutedEventArgs e)
     {
         var dialog = new SettingsWindow(_glimpseSettings) { Owner = this };
         if (dialog.ShowDialog() != true)
             return;
+        var searchBefore = (HardklorSearch, Linking);
         _glimpseSettings = dialog.Result;
         try
         {
@@ -79,6 +80,17 @@ public partial class MainWindow : Window
             MessageBox.Show(this, "The settings apply now but could not be saved: " + ex.Message, "Glimpse", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         ApplyFigureSettings();
+
+        // The peptide-like search runs while a file is read: new Hardklor or Kronik settings need the run read again.
+        if (_run is { } run && searchBefore != (HardklorSearch, Linking)
+            && MessageBox.Show(this,
+                $"The Hardklor or Kronik settings changed. Read {Path.GetFileName(run.Index.FilePath)} again now to find its peptide-like signal "
+                + "with them? It takes about as long as opening the file. Otherwise they apply to the next file opened.",
+                "Glimpse settings", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+        {
+            App.WriteLog($"Search settings changed: reading {run.Index.FilePath} again");
+            await OpenFileAsync(run.Index.FilePath);
+        }
     }
 
     /// <summary>Restyle every plot with the current settings and draw everything again.</summary>
