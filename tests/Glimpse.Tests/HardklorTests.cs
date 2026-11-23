@@ -143,8 +143,9 @@ public class HardklorTests
         // C100: binomial with p(13C) = 0.01084 (Dwight Matthews' value, in place of pwiz's NIST 0.0107).
         var peaks = Model.Distribution(new ElementCounts(100, 0, 0, 0, 0), 0.01);
         Assert.Equal(1200.0, peaks[0].Mass, 9);
-        Assert.Equal(1201.0033548378, peaks[1].Mass, 7);
-        Assert.Equal(1202.0067096756, peaks[2].Mass, 7);
+        // Spaced by Monocle's 1.00286864 Da, not 13C's 1.0033548.
+        Assert.Equal(1201.00286864, peaks[1].Mass, 7);
+        Assert.Equal(1202.00573728, peaks[2].Mass, 7);
         // M+1 / M+0 = 100 p / (1 - p) = 1.0816, so M+1 is the most abundant (relative 1);
         // M+0 = (1 - p) / (100 p), M+2 / M+1 = 49.5 p / (1 - p).
         Assert.Equal(0.91250922509225092, peaks[0].Abundance, 9);
@@ -152,7 +153,7 @@ public class HardklorTests
         Assert.Equal(0.54246026932, peaks[2].Abundance, 9);
         Assert.Equal(0.194194, peaks[3].Abundance, 5);   // 1617 p^2 / (1 - p)^2
         Assert.Equal(0.01084, PwizEnvelopeModel.Carbon13Abundance);
-        Assert.Equal(1201.0033548378, peaks[1].Mass, 9);
+        Assert.Equal(1.00286864, PwizEnvelopeModel.IsotopeSpacing);
     }
 
     [Fact]
@@ -527,15 +528,69 @@ public class HardklorTests
         return spectra;
     }
 
+    /// <summary>
+    /// PwizEnvelopeModel's abundances at the masses Hardklor's Mercury gives them in its fast mode
+    /// (CMercury8::Mercury and ConvertMass): evenly spaced by sqrt(mass variance / integer-mass variance),
+    /// anchored so the mean is the average mass. Only to check this port against Hardklor.exe exactly.
+    /// </summary>
+    private sealed class MercurySpacedModel : IEnvelopeModel
+    {
+        private readonly PwizEnvelopeModel _inner = new();
+
+        public IReadOnlyList<IsotopePeak> Distribution(ElementCounts f, double cutoff)
+        {
+            var peaks = _inner.Distribution(f, cutoff);
+            double mw = 0, intMw = 0, molVar = 0, intVar = 0, mono = 0;
+            foreach (var (element, n) in new[]
+            {
+                (global::Pwiz.Util.Chemistry.ElementType.C, f.C), (global::Pwiz.Util.Chemistry.ElementType.H, f.H),
+                (global::Pwiz.Util.Chemistry.ElementType.N, f.N), (global::Pwiz.Util.Chemistry.ElementType.O, f.O),
+                (global::Pwiz.Util.Chemistry.ElementType.S, f.S),
+            })
+            {
+                var isotopes = PwizEnvelopeModel.Isotopes(element).Where(i => i.Abundance > 0).ToArray();
+                double m1 = isotopes.Sum(i => i.Abundance * i.Mass), m2 = isotopes.Sum(i => i.Abundance * i.Mass * i.Mass);
+                double r1 = isotopes.Sum(i => i.Abundance * Math.Round(i.Mass)), r2 = isotopes.Sum(i => i.Abundance * Math.Round(i.Mass) * Math.Round(i.Mass));
+                mw += n * m1;
+                intMw += n * r1;
+                molVar += n * (m2 - m1 * m1);
+                intVar += n * (r2 - r1 * r1);
+                mono += n * isotopes.Min(i => i.Mass);
+            }
+            var ratio = intVar == 0 ? 1 : Math.Sqrt(molVar) / Math.Sqrt(intVar);
+            var monoInt = Math.Round(mono);
+            return peaks.Select(p => new IsotopePeak(mw + (monoInt + Math.Round(p.Mass - mono) - intMw) * ratio, p.Abundance)).ToArray();
+        }
+    }
+
+    /// <summary>
+    /// The port decides exactly as Hardklor.exe does: given Hardklor's isotope peak masses and the same
+    /// abundances (small_fticr_matthews.hk), it finds the same envelopes, on the same base peaks with the same
+    /// charges. Every difference left in <see cref="AgreesWithHardklorExe"/> is the isotope model's.
+    /// </summary>
+    [Fact]
+    public void DecidesExactlyAsHardklorExe()
+    {
+        var expected = ReadHk(HkFile("small_fticr_matthews.hk")).Select(h => (h.Scan, h.Charge, h.BaseMz)).Order().ToList();
+        var finder = new HardklorFinder(HardklorSettings.Default with { Instrument = HardklorInstrument.Fticr, Resolution = 100000 }, new MercurySpacedModel());
+        var ours = SmallMs1().SelectMany(s => finder.Find(s.Mz, s.Intensity).Select(e => (s.Scan, e.Charge, e.BasePeakMz))).Order().ToList();
+        Assert.Equal(1014, expected.Count);
+        Assert.Equal(expected.Count, ours.Count);
+        // Hardklor.exe writes the base peak to 4 decimals.
+        Assert.All(expected.Zip(ours), p => Assert.True(p.First.Scan == p.Second.Scan && p.First.Charge == p.Second.Charge
+            && Math.Abs(p.First.BaseMz - p.Second.BasePeakMz) <= 0.00005, $"{p.First} against {p.Second}"));
+    }
+
     /// <remarks>
-    /// small_orbitrap.hk is Skyline's configuration. Hardklor.exe models isotopes with its built-in abundances
-    /// and PwizEnvelopeModel with pwiz's, both with 13C 0.01084 (Dwight Matthews); the small H, N, O and S
-    /// differences put a few envelopes near the correlation threshold on different sides of it, and each
-    /// difference changes what is left of the spectrum for the next envelope. Measured: Hardklor.exe 1043, ours
-    /// 1046, 98.0% of Hardklor.exe's found and 97.7% of ours matched (with pwiz's NIST 13C 0.0107 it was 95.8%
-    /// and 94.2%). small_fticr_matthews.hk gave Hardklor.exe PwizEnvelopeModel's exact abundances (see
-    /// TestFiles/Hardklor/README.md): Hardklor.exe 1014, ours 1011, 98.6% and 98.9%, with identical
-    /// intensities; what remains is Mercury's approximate peak masses against exact ones.
+    /// small_orbitrap.hk is Skyline's configuration. Hardklor.exe and PwizEnvelopeModel use the same 13C
+    /// abundance (0.01084, Dwight Matthews) but place isotope peaks differently: Hardklor's Mercury spaces them
+    /// by about 1.0021 Da, PwizEnvelopeModel by Monocle's 1.00286864 Da (closer to observed isotope peaks), so a
+    /// few envelopes near the matching tolerance or the correlation threshold fall on different sides of it, and
+    /// each difference changes what is left of the spectrum for the next envelope. Measured: Hardklor.exe 1043,
+    /// ours 1049, 97.8% of Hardklor.exe's found and 97.3% of ours matched. small_fticr_matthews.hk gave
+    /// Hardklor.exe PwizEnvelopeModel's exact abundances (TestFiles/Hardklor/README.md): 97.8% and 98.6%, with
+    /// identical intensities. With Hardklor's spacing the port finds exactly Hardklor.exe's envelopes (see
+    /// <see cref="DecidesExactlyAsHardklorExe"/>), so these differences are the isotope model's alone.
     /// <para>The last values pin this port's own output (envelopes, matched, peaks, sum of peak indices, sum
     /// of masses, sum of intensities), recorded once it agreed with Hardklor.exe as above: the agreement
     /// thresholds alone let small changes to the algorithm through. A new Thermo reader that centroids
@@ -543,9 +598,9 @@ public class HardklorTests
     /// </remarks>
     [Theory]
     [InlineData("small_orbitrap.hk", HardklorInstrument.Orbitrap, 60000, 0.975, 0.97, 0.005,
-        1046, 1022, 2841, 2910667L, 1268054.0725338485, 100384530.77600098)]
-    [InlineData("small_fticr_matthews.hk", HardklorInstrument.Fticr, 100000, 0.98, 0.985, 0.001,
-        1011, 1000, 2729, 2842907L, 1209274.3900068176, 98286475.28387451)]
+        1049, 1021, 2848, 2924373L, 1270890.180633624, 100364860.61022949)]
+    [InlineData("small_fticr_matthews.hk", HardklorInstrument.Fticr, 100000, 0.975, 0.98, 0.001,
+        1006, 992, 2718, 2829507L, 1203542.6905437617, 98438767.89886475)]
     public void AgreesWithHardklorExe(string hkName, HardklorInstrument instrument, double resolution,
         double minRecall, double minPrecision, double intensityTolerance,
         int pinnedCount, int pinnedMatched, int pinnedPeaks, long pinnedIndexSum, double pinnedMassSum, double pinnedIntensitySum)

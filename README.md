@@ -76,6 +76,29 @@ run (intensity zoomed to the bulk of the peaks).*
 
 ![MS1 TIC with the signal assigned to document peptides beneath it](docs/images/chromatogram-assigned.png)
 
+### Peptide-like signal
+
+How much of a run's signal could be peptides, and how much of that the document explains. While a file is
+read, Glimpse finds the isotope envelopes in every MS1 scan, and in every MS2 scan of a DIA run, on worker
+threads, with a C# port of Hardklor (Hoopmann et al., Anal. Chem. 2007). After the pass it links them across
+scans as Bullseye's Kronik does (Hsieh et al., J. Proteome Res. 2010): an envelope found in at least 3 scans,
+at the same charge within 10 ppm, with one missed scan allowed, is peptide-like. MS2 envelopes are linked
+within each isolation window; DDA runs are MS1 only.
+
+The **Peptide-like** trace sums the peaks of those envelopes in each scan, next to the TIC and the Assigned
+trace: the gap between Peptide-like and Assigned is signal that looks like peptides but no document peptide
+explains, and the rest of the TIC is signal there is little chance to identify. Settings can restrict MS1 to
+multiply charged envelopes; MS2 counts every charge. Ion trap scans (a Stellar, a Tribrid's linear ion trap)
+are not searched: they cannot resolve the isotopes of multiply charged ions.
+
+The isotope model uses pwiz's isotope tables with 13C at 1.084% (Dwight Matthews' value, as in IDCalc and
+Hardklor) and spaces isotope peaks by 1.00286864 Da, Monocle's averagine spacing (Rad et al., J. Proteome Res.
+2021), which fits observed isotope peaks within about 1 ppm. With Hardklor's own spacing the port finds exactly
+Hardklor.exe's envelopes; with Monocle's it agrees with Skyline's Hardklor configuration on about 98%.
+
+On a 174,000-spectrum Orbitrap Astral Zoom DIA run the search finished 6 s after the pass, finding 73% of the
+MS1 signal and 38% of the MS2 signal peptide-like.
+
 ### Heatmaps
 
 m/z by retention time, for MS1 (peaks binned by m/z) or MS2 (each scan's signal across its isolation

@@ -57,6 +57,9 @@ Notes follow `release-notes/README.md`: append to `RELEASE_NOTES_next.md` as cha
   proves nothing - mutation testing found exactly that once).
 - CI (`.github/workflows/ci.yml`) pins pwiz-sharp in `.github/actions/checkout-pwiz-sharp`. Bump that
   commit deliberately, to the one you tested against locally, and `PwizCommit` in `TestData.cs` with it.
+- The Hardklor port (`src/Glimpse.Features/Hardklor`) must keep `HardklorTests.DecidesExactlyAsHardklorExe`
+  passing: with Hardklor's own isotope spacing it finds exactly Hardklor.exe's envelopes. Differences from
+  Hardklor.exe belong in the isotope model (`PwizEnvelopeModel`), never in the algorithm.
 - Test doubles live in `tests/Glimpse.Tests/Fakes.cs` (in-memory run, documents, library) and
   `SkylineConnectionTests.cs` (`FakeSkylineServer`, which speaks Skyline's real pipe protocol).
 

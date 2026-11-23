@@ -18,6 +18,11 @@ One-sentence summary of the release (written at release time).
   instruments. The Orbitrap Astral (Zoom), Exploris 480, Ascend, Fusion Lumos and Stellar have published
   values; other instruments, and files whose instrument model is unknown, use α 1. The heatmap divides each analyzer's scans by its own α, also where one level mixes
   analyzers. The Properties panel shows each scan's analyzer and α.
+- A Peptide-like chromatogram trace: the signal in isotope envelopes that persist over several scans, found
+  while the file is read with a port of Hardklor and linked with Bullseye's Kronik (MS1, and MS2 within each
+  DIA isolation window). Next to the TIC and the Assigned trace it shows how much signal looks like peptides
+  and how much of that the document explains. Settings can count only multiply charged MS1 envelopes. Ion trap
+  scans are not searched.
 - A Settings window (toolbar *Settings...*) sets font sizes, axis frame and tick sizes, and line widths for
   every plot, and edits the ion calibration table. Settings are saved for the next session.
 - Plot text and lines grow with the plot: a maximized window, or a large screen at 100% scaling, shows the
