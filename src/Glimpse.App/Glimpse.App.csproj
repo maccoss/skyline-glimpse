@@ -43,6 +43,9 @@
     <!-- Skyline tool manifest, copied next to the exe and so into the tool zip. -->
     <None Include="tool-inf\info.properties" CopyToOutputDirectory="PreserveNewest" />
     <None Include="tool-inf\SkylineGlimpse.properties" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The tool's logo: the one image (png, jpg or gif) directly in tool-inf. Without it Skyline shows its
+         default tool logo. Rendered from docs/logo/glimpse-icon.svg by build/make-icon.ps1. -->
+    <None Include="tool-inf\Glimpse.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
