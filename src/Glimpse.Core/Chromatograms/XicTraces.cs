@@ -34,7 +34,7 @@ public static class XicTraces
     /// </remarks>
     public static List<XicTrace> Build(
         ScanIndex index, DocumentSignals signals, IReadOnlyList<DocPeptide> peptides, XicMode mode, bool ms1, IntensityUnits units,
-        bool integratedOnly = false)
+        bool integratedOnly = false, IonCalibration? calibration = null)
     {
         var result = new List<XicTrace>();
         if (mode == XicMode.Off || peptides.Count == 0)
@@ -44,7 +44,7 @@ public static class XicTraces
         var distinct = DistinctMolecules(peptides);
 
         (double[] T, double[] Y)? Trace(IEnumerable<DocPeptide> group) =>
-            Combined(index, signals, group.SelectMany(p => p.Precursors), ms1, units, integratedOnly);
+            Combined(index, signals, group.SelectMany(p => p.Precursors), ms1, units, integratedOnly, calibration);
         // Labels count the peptides that have an XIC in this file.
         int Measured(IEnumerable<DocPeptide> group) => group.Count(p => p.Precursors.Any(signals.Xics.ContainsKey));
 
@@ -56,7 +56,7 @@ public static class XicTraces
                 {
                     foreach (var precursor in peptide.Precursors)
                     {
-                        if (Combined(index, signals, new[] { precursor }, ms1, units, integratedOnly) is { } t)
+                        if (Combined(index, signals, new[] { precursor }, ms1, units, integratedOnly, calibration) is { } t)
                         {
                             result.Add(new XicTrace($"{Assignment.PeakLabels.Precursor(precursor, "")} ({peptide.Protein.Name})",
                                 t.T, t.Y, precursor));
@@ -92,7 +92,8 @@ public static class XicTraces
     /// of them has a point.
     /// </summary>
     private static (double[] T, double[] Y)? Combined(
-        ScanIndex index, DocumentSignals signals, IEnumerable<DocPrecursor> precursors, bool ms1, IntensityUnits units, bool integratedOnly)
+        ScanIndex index, DocumentSignals signals, IEnumerable<DocPrecursor> precursors, bool ms1, IntensityUnits units, bool integratedOnly,
+        IonCalibration? calibration)
     {
         var withXic = new List<(DocPrecursor Precursor, PrecursorXic Xic)>();
         var molecules = new HashSet<(string, int, string)>();
@@ -109,13 +110,13 @@ public static class XicTraces
             return null;
 
         if (integratedOnly && withXic.All(x => (ms1 ? x.Xic.Ms1Claims : x.Xic.Ms2Claims) is not null))
-            return Union(index, signals, withXic, ms1, units);
+            return Union(index, signals, withXic, ms1, units, calibration);
 
         var parts = new List<(double[] T, double[] Y)>();
         foreach (var (precursor, xic) in withXic)
         {
             var (from, to) = Bounds(precursor, signals.FileName, integratedOnly);
-            var trace = Points(index, ms1 ? xic.Ms1Scans : xic.Ms2Scans, ms1 ? xic.Ms1Values : xic.Ms2Values, units, from, to);
+            var trace = Points(index, ms1 ? xic.Ms1Scans : xic.Ms2Scans, ms1 ? xic.Ms1Values : xic.Ms2Values, units, from, to, calibration);
             if (trace.T.Length > 0)
                 parts.Add(trace);
         }
@@ -133,7 +134,8 @@ public static class XicTraces
     /// the baseline between peaks instead of being drawn across them.
     /// </summary>
     private static (double[] T, double[] Y)? Union(
-        ScanIndex index, DocumentSignals signals, List<(DocPrecursor Precursor, PrecursorXic Xic)> precursors, bool ms1, IntensityUnits units)
+        ScanIndex index, DocumentSignals signals, List<(DocPrecursor Precursor, PrecursorXic Xic)> precursors, bool ms1, IntensityUnits units,
+        IonCalibration? calibration)
     {
         var perScan = new Dictionary<int, double>();
         var counted = new HashSet<long>();
@@ -169,7 +171,7 @@ public static class XicTraces
         {
             var scans = series.Order().ToArray();
             var values = scans.Select(s => (float)perScan[s]).ToArray();
-            var trace = Points(index, scans, values, units, double.NegativeInfinity, double.PositiveInfinity);
+            var trace = Points(index, scans, values, units, double.NegativeInfinity, double.PositiveInfinity, calibration);
             if (trace.T.Length > 0)
                 traces.Add(trace);
         }
@@ -192,7 +194,8 @@ public static class XicTraces
             : (double.NegativeInfinity, double.PositiveInfinity);
 
     /// <summary>A trace's points from <paramref name="from"/> to <paramref name="to"/> minutes, inclusive.</summary>
-    private static (double[] T, double[] Y) Points(ScanIndex index, int[] scans, float[] values, IntensityUnits units, double from, double to)
+    private static (double[] T, double[] Y) Points(ScanIndex index, int[] scans, float[] values, IntensityUnits units, double from, double to,
+        IonCalibration? calibration)
     {
         var t = new List<double>(scans.Length);
         var y = new List<double>(scans.Length);
@@ -200,7 +203,7 @@ public static class XicTraces
         for (var i = 0; i < scans.Length; i++)
         {
             var h = index[scans[i]];
-            var v = IntensityConversion.Convert(values[i], h.InjectionTimeMs, units);
+            var v = IntensityConversion.Convert(values[i], h, units, calibration);
             if (double.IsNaN(v) || double.IsNaN(h.RetentionTime) || h.RetentionTime < from || h.RetentionTime > to)
                 continue;
             if (h.RetentionTime <= lastT)

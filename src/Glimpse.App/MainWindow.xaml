@@ -30,7 +30,7 @@
                 <Separator />
                 <TextBlock Text="Units:" VerticalAlignment="Center" Margin="4,0" />
                 <ComboBox x:Name="UnitsCombo" Width="90" SelectedIndex="0" SelectionChanged="OnViewOptionChanged"
-                          ToolTip="Intensity as recorded (ions/s for Orbitrap/Astral), or ion counts (intensity x injection time)">
+                          ToolTip="Intensity as recorded (ions/s for Orbitrap/Astral), or ion counts: intensity x injection time, divided by the analyzer's calibration factor α (Settings; α 1 for an instrument without one)">
                     <ComboBoxItem Content="Intensity" />
                     <ComboBoxItem Content="Ions" />
                 </ComboBox>
@@ -38,6 +38,9 @@
                 <ToggleButton x:Name="PropertiesToggle" Content="Properties" IsChecked="True"
                               Checked="OnPropertiesToggle" Unchecked="OnPropertiesToggle"
                               ToolTip="Show or hide the properties panel" />
+                <Separator />
+                <Button Content="Settings..." Click="OnSettings"
+                        ToolTip="Plot text and line sizes, and the ion calibration factors (α) per instrument" />
             </ToolBar>
         </ToolBarTray>
 

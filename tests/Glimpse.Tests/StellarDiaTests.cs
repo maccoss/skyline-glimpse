@@ -43,6 +43,9 @@ public class StellarDiaTests
         Assert.Equal(0.0001087396666667, index.RtFirst, 12);
         Assert.Equal(24.026247267767, index.RtLast, 9);
         Assert.All(index.Headers, h => Assert.True(h.Centroided));
+        // Every scan from the ion trap, which has a published α (0.97).
+        Assert.Equal(MassAnalyzer.IonTrap, index.AnalyzerOf(1));
+        Assert.Equal(MassAnalyzer.IonTrap, index.AnalyzerOf(2));
 
         // Every scan has an injection time, so every scan has an ion count.
         Assert.True(index.HasInjectionTimes);

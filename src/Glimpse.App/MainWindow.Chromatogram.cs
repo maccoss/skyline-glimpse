@@ -95,9 +95,9 @@ public partial class MainWindow
         var separateXicAxis = hasXics && hasRunTraces && XicSeparateCheck.IsChecked == true;
 
         if (TicCheck.IsChecked == true)
-            AddTrace(plot, RunChromatogram.Build(_run.Index, RunTraceKind.Tic, filter, units), Colors.Black, runAxis, hasXics);
+            AddTrace(plot, RunChromatogram.Build(_run.Index, RunTraceKind.Tic, filter, units, Calibration), Colors.Black, runAxis, hasXics);
         if (BpcCheck.IsChecked == true)
-            AddTrace(plot, RunChromatogram.Build(_run.Index, RunTraceKind.BasePeak, filter, units), Color.FromHex("#1F4E9A"), runAxis, hasXics);
+            AddTrace(plot, RunChromatogram.Build(_run.Index, RunTraceKind.BasePeak, filter, units, Calibration), Color.FromHex("#1F4E9A"), runAxis, hasXics);
         if (AssignedCheck.IsChecked == true && _run.Signals is { } signals)
         {
             // Drawn over the TIC: total and assigned side by side, the gap between them unassigned.
@@ -154,7 +154,7 @@ public partial class MainWindow
         plot.Legend.IsVisible = false;
         var soFar = preview.SoFar;
         var filter = soFar.IndicesOfLevel(1).Count > 0 ? ScanFilter.Ms1 : ScanFilter.All;
-        var tic = RunChromatogram.Build(soFar, RunTraceKind.Tic, filter, Units);
+        var tic = RunChromatogram.Build(soFar, RunTraceKind.Tic, filter, Units, CalibrationFor(soFar.Run.InstrumentModel));
         AddTrace(plot, tic, Colors.Black, plot.Axes.Left, dimmed: false);
         plot.Axes.Left.Label.Text = IntensityConversion.Label(Units);
         var top = tic.Count == 0 ? 1 : tic.Values.Where(double.IsFinite).DefaultIfEmpty(1).Max();
@@ -183,7 +183,7 @@ public partial class MainWindow
             return new List<XicTrace>();
         }
         var request = new XicRequest(_run.Index, signals, _selectedPeptides, CurrentXicMode, Ms1: XicLevelCombo.SelectedIndex == 1, units,
-            IntegratedOnly: IntegratedOnlyCheck.IsChecked == true);
+            IntegratedOnly: IntegratedOnlyCheck.IsChecked == true, Calibration: Calibration);
         if (_xicCache.TryGet(request, out var traces))
             return traces;
         if (request.Peptides.Count <= MaxImmediateXicPeptides)
@@ -250,12 +250,13 @@ public partial class MainWindow
     /// <summary>Per scan of the filter: the signal document peptides claim.</summary>
     private Trace AssignedTrace(Core.Assignment.DocumentSignals signals, ScanFilter filter, IntensityUnits units)
     {
-        var tic = RunChromatogram.Build(_run!.Index, RunTraceKind.Tic, filter, units);
+        var calibration = Calibration;
+        var tic = RunChromatogram.Build(_run!.Index, RunTraceKind.Tic, filter, units, calibration);
         var assigned = new double[tic.Count];
         for (var i = 0; i < tic.Count; i++)
         {
             var h = _run.Index[tic.ScanIndices[i]];
-            assigned[i] = IntensityConversion.Convert(signals.AssignedIntensity[h.Index], h.InjectionTimeMs, units);
+            assigned[i] = IntensityConversion.Convert(signals.AssignedIntensity[h.Index], h, units, calibration);
         }
         return new Trace($"Assigned ({filter.Describe()})", tic.Times, assigned, tic.ScanIndices);
     }

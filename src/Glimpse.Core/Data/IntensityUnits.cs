@@ -7,8 +7,9 @@ public enum IntensityUnits
     AsRecorded,
 
     /// <summary>
-    /// Ion counts: intensity times the injection time in seconds. This is Skyline's own convention
-    /// (<c>LcPeakIonMetrics</c>: <c>intensity * InjectionTime / 1000</c> with the time in ms).
+    /// Ion counts: intensity times the injection time in seconds (Skyline's <c>LcPeakIonMetrics</c>:
+    /// <c>intensity * InjectionTime / 1000</c> with the time in ms), divided by the analyzer's α when the
+    /// calibration table knows it (<see cref="IonCalibration"/>).
     /// </summary>
     Ions,
 }
@@ -27,6 +28,16 @@ public static class IntensityConversion
         if (float.IsNaN(injectionTimeMs) || injectionTimeMs <= 0)
             return double.NaN;
         return intensity * injectionTimeMs / 1000.0;
+    }
+
+    /// <summary>
+    /// <see cref="Convert(double, float, IntensityUnits)"/> for one scan, with its analyzer's α applied to
+    /// ions when <paramref name="calibration"/> knows it.
+    /// </summary>
+    public static double Convert(double intensity, in ScanHeader scan, IntensityUnits units, IonCalibration? calibration)
+    {
+        var value = Convert(intensity, scan.InjectionTimeMs, units);
+        return units == IntensityUnits.Ions && calibration is not null ? value / calibration.Divisor(scan.Analyzer) : value;
     }
 
     public static string Label(IntensityUnits units) => units switch

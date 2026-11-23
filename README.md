@@ -35,7 +35,8 @@ focused peptide.*
 - **TIC and base peak**, over all scans, MS1, MS2, or a single DIA isolation window.
 - **Intensity or ions.** Orbitrap and Astral intensities are ion arrival rates (ions/s). Switching
   units to *Ions* multiplies each point by its scan's injection time, Skyline's own convention
-  (`intensity x injection time / 1000`).
+  (`intensity x injection time / 1000`), and divides by the α of the analyzer that recorded the scan
+  when the instrument has one (see [Settings](#settings)), so ion counts compare across instruments.
 - **XICs for any number of peptides**, with no top-N cap: per peptide (the default for up to 100
   peptides), one per protein, or one summed trace. Per peptide, each charge state is its own trace,
   labelled as in the spectrum ("WYNLAIGSTC[+57]PWLK 2+") and drawn in its peptide's color, lighter for
@@ -126,8 +127,8 @@ A panel you can show or hide, modeled on Skyline's Full-Scan properties:
 
 - **File:** path, replicate, instrument, acquisition date, and the number of spectra and isolation
   windows.
-- **Acquisition:** scan number, MS level, retention time, isolation window, injection time, and
-  dissociation method.
+- **Acquisition:** scan number, MS level, retention time, isolation window, injection time,
+  dissociation method, and the analyzer that recorded the scan, with its ion calibration α.
 - **Spectrum statistics:** peak count, TIC in intensity and ions, base peak, and how many peptides and
   how much signal are assigned.
 - **Focused peptide:** protein, gene, modified sequence, charge, integrated peak, detection q value,
@@ -150,6 +151,31 @@ selects them in Skyline (up to 1,000 elements at a time).
 On any plot, left-drag a rectangle to zoom into it, scroll the wheel to zoom, middle-drag to pan, and
 right-drag to stretch an axis. *Reset zoom* above the plot, a double-click or a middle-click returns to
 the whole run or spectrum, with intensity from zero.
+
+### Settings
+
+*Settings...* on the toolbar opens two tabs, saved in `%LOCALAPPDATA%\SkylineGlimpse\settings.json`:
+
+- **Plots:** font sizes (axis titles, tick labels, legend, spectrum peak labels), the axis frame and
+  tick sizes, and the line widths of the TIC, XICs and spectrum sticks. Text and lines grow with a larger
+  plot unless you turn that off.
+- **Ion calibration:** the α of each instrument's analyzers. An Orbitrap or Astral reports
+  `intensity = α x ions / injection time`, with α a fixed property of the analyzer, so ions are
+  `intensity x injection time / 1000 / α`. The table starts with the values measured by Hsu et al.,
+  J. Proteome Res. 2025, 24, 5742 (Table 1):
+
+  | Instrument | Astral | Orbitrap | Ion trap |
+  |---|---|---|---|
+  | Orbitrap Astral Zoom | 1.31 | 10.30 | |
+  | Orbitrap Astral | 1.53 | 10.62 | |
+  | Orbitrap Exploris 480 | | 10.95 | |
+  | Orbitrap Ascend | | 9.40 | 0.98 |
+  | Orbitrap Fusion Lumos | | 15.44 | 1.09 |
+  | Stellar | | | 0.97 |
+
+  Add or edit rows for other instruments; the name must match the instrument shown in the Properties
+  panel. A scan from an analyzer without a row, or from a file whose instrument model is unknown, uses
+  α 1: ions are intensity x injection time / 1000.
 
 ## Speed
 

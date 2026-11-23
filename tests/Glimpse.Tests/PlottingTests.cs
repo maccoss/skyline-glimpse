@@ -6,6 +6,7 @@ using Xunit;
 
 namespace Glimpse.Tests;
 
+[Collection(FigureStyleCollection.Name)]
 public class PlottingTests
 {
     [Fact]
@@ -115,6 +116,7 @@ public class PlottingTests
     }
 }
 
+[Collection(FigureStyleCollection.Name)]
 public class HoverAndColorTests
 {
     [Fact]
@@ -167,6 +169,7 @@ public class HoverAndColorTests
     }
 }
 
+[Collection(FigureStyleCollection.Name)]
 public class FigureStyleTests
 {
     [Fact]
@@ -244,6 +247,7 @@ public class FigureStyleTests
     }
 }
 
+[Collection(FigureStyleCollection.Name)]
 public class HighDpiTests
 {
     [Fact]

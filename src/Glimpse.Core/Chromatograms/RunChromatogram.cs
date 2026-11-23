@@ -24,7 +24,8 @@ public sealed record Trace(string Name, double[] Times, double[] Values, int[] S
 /// <summary>Builds TIC and base-peak traces from a <see cref="ScanIndex"/>, without re-reading the file.</summary>
 public static class RunChromatogram
 {
-    public static Trace Build(ScanIndex index, RunTraceKind kind, ScanFilter filter, IntensityUnits units)
+    /// <param name="calibration">The run's α factors, applied to ions (null: uncalibrated).</param>
+    public static Trace Build(ScanIndex index, RunTraceKind kind, ScanFilter filter, IntensityUnits units, IonCalibration? calibration = null)
     {
         var times = new List<double>();
         var values = new List<double>();
@@ -39,7 +40,7 @@ public static class RunChromatogram
             if (!filter.Accepts(h) || double.IsNaN(h.RetentionTime))
                 continue;
             var raw = kind == RunTraceKind.Tic ? h.TotalIonCurrent : h.BasePeakIntensity;
-            var value = IntensityConversion.Convert(raw, h.InjectionTimeMs, units);
+            var value = IntensityConversion.Convert(raw, h, units, calibration);
             if (double.IsNaN(value))
                 continue;
             times.Add(h.RetentionTime);

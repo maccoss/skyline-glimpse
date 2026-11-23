@@ -10,25 +10,32 @@ namespace Glimpse.Plotting;
 /// </summary>
 public static class FigureStyle
 {
-    public const float TickLabelFontSize = 16;
-    public const float AxisLabelFontSize = 18;
-    public const float LegendFontSize = 15;
-    public const float FrameWidth = 2;
-    public const float MajorTickLength = 8;
-    public const float MajorTickWidth = 2;
-    public const float MinorTickLength = 4;
-    public const float MinorTickWidth = 1.5f;
+    /// <summary>The sizes in use: the user's settings, or the defaults below.</summary>
+    public static FigureSettings Current { get; set; } = FigureSettings.Default;
+
+    public static float TickLabelFontSize => Current.TickLabelFontSize;
+    public static float AxisLabelFontSize => Current.AxisLabelFontSize;
+    public static float LegendFontSize => Current.LegendFontSize;
+    public static float FrameWidth => Current.FrameWidth;
+    public static float MajorTickLength => Current.MajorTickLength;
+    public static float MajorTickWidth => Current.MajorTickWidth;
+    public static float MinorTickLength => Current.MinorTickLength;
+    public static float MinorTickWidth => Current.MinorTickWidth;
 
     /// <summary>TIC, base peak and assigned-signal traces.</summary>
-    public const float TraceWidth = 2;
+    public static float TraceWidth => Current.TraceWidth;
 
     /// <summary>Spectrum sticks: unassigned peaks, and peaks assigned to a peptide.</summary>
-    public const float StickWidth = 1.5f;
-    public const float AssignedStickWidth = 2.5f;
-    public const float PeakLabelFontSize = 14;
+    public static float StickWidth => Current.StickWidth;
+    public static float AssignedStickWidth => Current.AssignedStickWidth;
+    public static float PeakLabelFontSize => Current.PeakLabelFontSize;
 
-    /// <summary>XIC line width: heavy for a few traces, hairlines when hundreds overlap and density is the point.</summary>
-    public static float XicWidth(int traceCount) => traceCount > 200 ? 1f : traceCount > 20 ? 1.5f : 2.5f;
+    /// <summary>
+    /// XIC line width: the setting for a few traces, three fifths of it past 20 traces and two fifths past
+    /// 200, where hundreds overlap and density is the point (2.5, 1.5 and 1 with the defaults).
+    /// </summary>
+    public static float XicWidth(int traceCount) =>
+        traceCount > 200 ? Current.XicWidth * 2 / 5 : traceCount > 20 ? Current.XicWidth * 3 / 5 : Current.XicWidth;
 
     /// <summary>
     /// A heatmap's color scale. Peptide counts and assigned fractions use Turbo, the high-contrast map
@@ -53,6 +60,8 @@ public static class FigureStyle
     /// </summary>
     public static double SizeScale(double width, double height)
     {
+        if (!Current.ScaleWithPlotSize)
+            return 1;
         if (!(width > 0) || !(height > 0) || !double.IsFinite(width) || !double.IsFinite(height))
             return 1;
         return Math.Clamp(Math.Sqrt(width / ReferenceWidth * (height / ReferenceHeight)), 1, MaxSizeScale);

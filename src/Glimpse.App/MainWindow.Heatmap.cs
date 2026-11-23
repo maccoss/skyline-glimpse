@@ -68,7 +68,7 @@ public partial class MainWindow
                 return;
             default:
                 grid = HeatLevel == 1 ? _run.Heatmaps.Ms1 : _run.Heatmaps.Ms2;
-                values = grid.For(Units);
+                values = grid.For(Units, Calibration);   // ions: each analyzer's scans divided by its α
                 label = (Units == Core.Data.IntensityUnits.Ions ? "Ions" : "Intensity") + (log ? " (Log10)" : "");
                 if (!log)
                 {
