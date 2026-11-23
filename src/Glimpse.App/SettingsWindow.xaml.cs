@@ -58,6 +58,7 @@ public partial class SettingsWindow : Window
         ShowAlphas(settings.IonCalibration);
         AlphaGrid.ItemsSource = _alphas;
         PeptideLikeChargeCheck.IsChecked = settings.PeptideLikeMs1MinCharge >= 2;
+        LabelDecimalsBox.Text = settings.PeptideLikeLabelDecimals.ToString(Inv);
     }
 
     /// <summary>The settings as edited, once OK is pressed.</summary>
@@ -115,11 +116,18 @@ public partial class SettingsWindow : Window
             return;
         }
 
+        if (!int.TryParse(LabelDecimalsBox.Text, NumberStyles.Integer, Inv, out var decimals) || decimals < 0 || decimals > GlimpseSettings.MaxLabelDecimals)
+        {
+            Refuse($"The envelope label decimals need a whole number from 0 to {GlimpseSettings.MaxLabelDecimals}.", LabelDecimalsBox);
+            return;
+        }
+
         Result = new GlimpseSettings
         {
             Figures = figures,
             IonCalibration = entries,
             PeptideLikeMs1MinCharge = PeptideLikeChargeCheck.IsChecked == true ? 2 : 1,
+            PeptideLikeLabelDecimals = decimals,
         }.Validated();
         DialogResult = true;
     }

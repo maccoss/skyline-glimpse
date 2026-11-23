@@ -1,3 +1,5 @@
+using System.Globalization;
+using Glimpse.Core.Chemistry;
 using Glimpse.Core.Data;
 
 namespace Glimpse.Features;
@@ -32,6 +34,14 @@ public static class PeptideLikeEnvelopes
         var minCharge = signal.Headers[scan].MsLevel == 1 ? ms1MinCharge : 1;
         return found.Where((e, i) => ids[i] >= 0 && e.Charge >= minCharge).ToArray();
     }
+
+    /// <summary>An envelope's monoisotopic m/z: its precursor m/z.</summary>
+    public static double MonoisotopicMz(IsotopeEnvelope envelope) => (envelope.MonoMass + envelope.Charge * Mass.Proton) / envelope.Charge;
+
+    /// <summary>An envelope's label: its monoisotopic m/z to <paramref name="decimals"/> places, then its charge ("542.29 2+").</summary>
+    public static string Label(IsotopeEnvelope envelope, int decimals) =>
+        MonoisotopicMz(envelope).ToString("F" + decimals.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture)
+        + " " + envelope.Charge.ToString(CultureInfo.InvariantCulture) + "+";
 
     /// <summary>The index of an envelope's base peak in the spectrum (its matched peak nearest the base peak m/z).</summary>
     public static int BasePeakIndex(IsotopeEnvelope envelope, double[] mz) =>

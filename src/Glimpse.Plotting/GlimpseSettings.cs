@@ -94,6 +94,12 @@ public sealed record GlimpseSettings
     /// </summary>
     public int PeptideLikeMs1MinCharge { get; init; } = 1;
 
+    /// <summary>Decimal places of the m/z in a spectrum's peptide-like envelope labels ("542.29 2+").</summary>
+    public int PeptideLikeLabelDecimals { get; init; } = 2;
+
+    /// <summary>The most decimal places an envelope label may show.</summary>
+    public const int MaxLabelDecimals = 6;
+
     public static string DefaultPath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SkylineGlimpse", "settings.json");
 
@@ -154,6 +160,7 @@ public sealed record GlimpseSettings
     {
         Figures = (Figures ?? FigureSettings.Default).Validated(),
         PeptideLikeMs1MinCharge = Math.Clamp(PeptideLikeMs1MinCharge, 1, 2),
+        PeptideLikeLabelDecimals = Math.Clamp(PeptideLikeLabelDecimals, 0, MaxLabelDecimals),
         IonCalibration = IonCalibration is null
             ? IonCalibrationTable.Published
             : IonCalibration.Where(e => e is not null && !string.IsNullOrWhiteSpace(e.Instrument) && double.IsFinite(e.Alpha) && e.Alpha > 0)

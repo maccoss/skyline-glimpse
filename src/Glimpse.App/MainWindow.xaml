@@ -222,7 +222,7 @@
                                   ToolTip="Show every ion a shared peak matches, not just the first" />
                         <CheckBox x:Name="PeptideLikeLabelsCheck" Content="Peptide-like" IsChecked="True" Margin="6,0" VerticalAlignment="Center"
                                   Checked="OnPeptideLikeLabelsChanged" Unchecked="OnPeptideLikeLabelsChanged"
-                                  ToolTip="Mark isotope envelopes that persist over several scans but no document peptide explains: their peaks in black, labeled with charge and monoisotopic mass" />
+                                  ToolTip="Mark isotope envelopes that persist over several scans but no document peptide explains: their peaks in black, labeled with monoisotopic m/z and charge" />
                         <Button Content="Reset zoom" Margin="12,0,0,0" Padding="6,0" Click="OnResetSpectrumZoom" ToolTip="Show the whole plot again (or double-click or middle-click the plot)" />
                     </StackPanel>
                     <DockPanel DockPanel.Dock="Top" Margin="2">

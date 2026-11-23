@@ -125,6 +125,28 @@ public class PeptideLikeEnvelopesTests
     }
 
     [Fact]
+    public void AnEnvelopeIsLabeledWithItsMzThenItsCharge()
+    {
+        // 1082.5679 Da at 2+: (1082.5679 + 2 x 1.00727646688) / 2 = 542.291226467
+        var envelope = new IsotopeEnvelope(1082.5679, 2, 1, 542.29, 0.99, 542, 544, new[] { 0 });
+        Assert.Equal(542.29122646688, PeptideLikeEnvelopes.MonoisotopicMz(envelope), 9);
+        Assert.Equal("542.29 2+", PeptideLikeEnvelopes.Label(envelope, 2));
+        Assert.Equal("542 2+", PeptideLikeEnvelopes.Label(envelope, 0));
+        Assert.Equal("542.2912 2+", PeptideLikeEnvelopes.Label(envelope, 4));
+        Assert.Equal("1083.57518 1+", PeptideLikeEnvelopes.Label(envelope with { Charge = 1 }, 5));   // 1083.575176...
+        var culture = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("de-DE");
+            Assert.Equal("542.29 2+", PeptideLikeEnvelopes.Label(envelope, 2));    // a decimal point in any language
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = culture;
+        }
+    }
+
+    [Fact]
     public void TheBasePeakIsTheMatchedPeakAtTheBasePeakMz()
     {
         var mz = new[] { 499.0, 500.0, 500.5, 501.0 };

@@ -248,14 +248,15 @@ public partial class MainWindow
                 }
             }
             // Peptide-like envelopes no document peptide explains: their peaks a peptide does not already color,
-            // and a label at the base peak (charge and monoisotopic mass).
+            // and a label at the base peak (monoisotopic m/z, then charge).
+            var decimals = _glimpseSettings.PeptideLikeLabelDecimals;
             foreach (var e in unassigned)
             {
                 foreach (var p in e.PeakIndices)
                     colors[p] ??= _focused is null ? PeptideLikeColor : Color.FromHex("#d0d0d0");
                 var basePeak = Features.PeptideLikeEnvelopes.BasePeakIndex(e, s.Mz);
                 if (labels is not null && _focused is null && labels[basePeak] is null)
-                    labels[basePeak] = showMz ? $"{e.Charge}+ {e.MonoMass:0.00} {s.Mz[basePeak]:0.000}" : $"{e.Charge}+ {e.MonoMass:0.00}";
+                    labels[basePeak] = Features.PeptideLikeEnvelopes.Label(e, decimals);
             }
             _sticks.PeakColors = colors;
             _sticks.PeakLabels = labels;
@@ -399,7 +400,8 @@ public partial class MainWindow
         }
         else if (UnassignedPeptideLike(_spectrum).FirstOrDefault(env => env.PeakIndices.Contains(i)) is { } envelope)
         {
-            text += $"  peptide-like envelope {envelope.Charge}+ {envelope.MonoMass:0.0000} (correlation {envelope.Correlation:0.000}), no document peptide";
+            text += $"  peptide-like envelope m/z {Features.PeptideLikeEnvelopes.MonoisotopicMz(envelope):0.0000} {envelope.Charge}+ "
+                + $"(mass {envelope.MonoMass:0.0000}, correlation {envelope.Correlation:0.000}), no document peptide";
         }
         SpectrumHoverText.Text = text;
         SpectrumHoverText.ToolTip = text;
