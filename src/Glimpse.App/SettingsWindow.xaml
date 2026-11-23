@@ -49,7 +49,7 @@
                 </DockPanel>
             </TabItem>
             <TabItem Header="Peptide-like">
-                <StackPanel Margin="8">
+                <StackPanel Margin="8" Grid.IsSharedSizeScope="True">
                     <TextBlock TextWrapping="Wrap" Margin="0,0,0,10">
                         While a file is read, Glimpse finds the isotope envelopes in every MS1 scan, and in every MS2 scan of a
                         DIA run, with a port of Hardklor, and links them across scans with Kronik (as Bullseye does). Envelopes
@@ -65,7 +65,7 @@
                     <TextBlock Text="Hardklor settings" Margin="0,12,0,4" FontWeight="SemiBold" />
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" SharedSizeGroup="SearchLabel" />
                             <ColumnDefinition Width="70" />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
@@ -86,7 +86,7 @@
                     <TextBlock Text="Kronik settings" Margin="0,12,0,4" FontWeight="SemiBold" />
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" SharedSizeGroup="SearchLabel" />
                             <ColumnDefinition Width="70" />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
