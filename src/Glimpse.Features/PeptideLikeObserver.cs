@@ -12,6 +12,9 @@ public interface IEnvelopeFinder
     /// differ). Called from several threads at once.
     /// </summary>
     IReadOnlyList<IsotopeEnvelope> Find(double[] mz, double[] intensity, MassAnalyzer analyzer);
+
+    /// <summary>False for scans the finder cannot resolve isotopes in (an ion trap's): they are not searched.</summary>
+    bool CanSearch(MassAnalyzer analyzer);
 }
 
 /// <summary>
@@ -21,6 +24,7 @@ public interface IEnvelopeFinder
 /// peptide-like signal.
 /// </summary>
 /// <remarks>
+/// <para>Scans the finder cannot search (an ion trap does not resolve isotopes) are left out.</para>
 /// <para>MS2 scans count only in DIA, where each isolation window repeats every cycle. A window seen for the
 /// first time is held until it comes back; once more than <see cref="MaxDiaWindows"/> distinct windows have
 /// appeared the run is DDA (a window per precursor) and MS2 scans are left out.</para>
@@ -78,6 +82,8 @@ public sealed class PeptideLikeObserver : IScanObserver, IDisposable
         var h = spectrum.Header;
         if (h.Index >= 0 && h.Index < _headers.Length)
             _headers[h.Index] = h;
+        if (!_finder.CanSearch(h.Analyzer))
+            return;   // isotopes not resolved (ion trap): no peptide-like signal for this scan
         if (h.MsLevel == 1)
         {
             _ms1.Add(h.Index);
@@ -279,8 +285,11 @@ public sealed class PeptideLikeSignal
     /// <summary>True when MS2 scans were left out because the run is DDA.</summary>
     public bool IsDda { get; }
 
-    /// <summary>True when the scan was searched for envelopes (MS1 scans, and DIA MS2 scans).</summary>
+    /// <summary>True when the scan was searched for envelopes (MS1 scans, and DIA MS2 scans, not from an ion trap).</summary>
     public bool Covers(int scan) => _featureOf.ContainsKey(scan);
+
+    /// <summary>True when any scan was searched (false for a run read entirely in an ion trap).</summary>
+    public bool CoversAny => _featureOf.Count > 0;
 
     /// <summary>
     /// Per scan of the run, the summed intensity of its peaks in persistent envelopes (each peak once); NaN for

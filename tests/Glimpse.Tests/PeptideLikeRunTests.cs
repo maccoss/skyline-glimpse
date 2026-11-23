@@ -21,32 +21,37 @@ public class PeptideLikeRunTests
     {
         Assert.Equal((HardklorInstrument.Orbitrap, 60000.0), Of(AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.Orbitrap)));
         Assert.Equal((HardklorInstrument.Tof, 80000.0), Of(AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.Astral)));
-        Assert.Equal((HardklorInstrument.Qit, 2500.0), Of(AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.IonTrap)));
         Assert.Equal((HardklorInstrument.Orbitrap, 60000.0), Of(AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.Other)));
         Assert.Equal((HardklorInstrument.Orbitrap, 60000.0), Of(AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.Unknown)));
-        // Peak widths at m/z 800: Orbitrap 800^1.5 / (20 x 60000), Astral 800 / 80000, ion trap 2500 / 5000.
-        Assert.Equal(0.018856, AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.Orbitrap).PeakWidth(800), 6);
-        Assert.Equal(0.01, AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.Astral).PeakWidth(800), 9);
-        Assert.Equal(0.5, AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.IonTrap).PeakWidth(800), 9);
+        // Peak widths at m/z 800: Orbitrap 800^1.5 / (20 x 60000), Astral 800 / 80000.
+        Assert.Equal(0.018856, AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.Orbitrap)!.PeakWidth(800), 6);
+        Assert.Equal(0.01, AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.Astral)!.PeakWidth(800), 9);
+        // An ion trap does not resolve isotopes: not searched.
+        Assert.Null(AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.IonTrap));
+        var finder = new AnalyzerEnvelopeFinder(new PwizEnvelopeModel());
+        Assert.False(finder.CanSearch(MassAnalyzer.IonTrap));
+        Assert.True(finder.CanSearch(MassAnalyzer.Orbitrap));
+        Assert.True(finder.CanSearch(MassAnalyzer.Astral));
+        Assert.True(finder.CanSearch(MassAnalyzer.Unknown));
 
-        static (HardklorInstrument, double) Of(HardklorSettings s) => (s.Instrument, s.Resolution);
+        static (HardklorInstrument, double) Of(HardklorSettings? s) => (s!.Instrument, s.Resolution);
     }
 
     [Fact]
     public void TheFinderUsesTheScansAnalyzer()
     {
-        // A 2+ envelope whose isotopes sit 0.03 m/z off: inside an ion trap's 0.5-wide peaks, outside the
-        // Orbitrap's (0.012 at m/z 600) and the Astral's (0.0075).
-        var mz = new[] { 600.3, 600.3 + 1.00290 / 2 + 0.03, 600.3 + 2 * 1.00290 / 2 + 0.03, 600.3 + 3 * 1.00290 / 2 + 0.03 };
+        // A 2+ envelope whose isotopes sit 0.005 m/z off: inside the Orbitrap's peaks (0.012 wide at m/z 600),
+        // outside the Astral's (0.0075).
+        var mz = new[] { 600.3, 600.3 + 1.00290 / 2 + 0.005, 600.3 + 2 * 1.00290 / 2 + 0.005, 600.3 + 3 * 1.00290 / 2 + 0.005 };
         var intensity = new[] { 100000.0, 64000, 25500, 7400 };
         var finder = new AnalyzerEnvelopeFinder(new PwizEnvelopeModel());
-        var trap = finder.Find(mz, intensity, MassAnalyzer.IonTrap);
-        Assert.Equal(2, Assert.Single(trap).Charge);
-        var expected = new HardklorFinder(AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.IonTrap), new PwizEnvelopeModel()).Find(mz, intensity);
-        Assert.Equal(expected.Single().MonoMass, trap.Single().MonoMass);
-        Assert.DoesNotContain(finder.Find(mz, intensity, MassAnalyzer.Orbitrap), e => e.Charge == 2);
+        var orbitrap = finder.Find(mz, intensity, MassAnalyzer.Orbitrap);
+        Assert.Equal(2, Assert.Single(orbitrap).Charge);
+        var expected = new HardklorFinder(AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.Orbitrap)!, new PwizEnvelopeModel()).Find(mz, intensity);
+        Assert.Equal(expected.Single().MonoMass, orbitrap.Single().MonoMass);
+        Assert.Equal(2, Assert.Single(finder.Find(mz, intensity, MassAnalyzer.Other)).Charge);       // Orbitrap settings
         Assert.DoesNotContain(finder.Find(mz, intensity, MassAnalyzer.Astral), e => e.Charge == 2);
-        Assert.DoesNotContain(finder.Find(mz, intensity, MassAnalyzer.Other), e => e.Charge == 2);   // Orbitrap settings
+        Assert.Empty(finder.Find(mz, intensity, MassAnalyzer.IonTrap));                               // not searched
     }
 
     [Fact]
@@ -58,10 +63,14 @@ public class PeptideLikeRunTests
         Assert.True(observer.Completion.Wait(TimeSpan.FromMinutes(2)));
         var signal = observer.Completion.Result;
 
-        // small.RAW is DDA (MS2 on a few precursors): MS1 only.
-        Assert.Equal(index.IndicesOfLevel(1), signal.Series[0]);
-        var ms1 = index.IndicesOfLevel(1).Select(i => signal.IntensityByScan()[i]).ToArray();
-        var tic = index.IndicesOfLevel(1).Select(i => index[i].TotalIonCurrent).ToArray();
+        // small.RAW is DDA (MS2 on a few precursors): MS1 only, and of that only the FT scans: its ion trap
+        // full scans are not searched.
+        var ft = index.IndicesOfLevel(1).Where(i => index[i].Analyzer != MassAnalyzer.IonTrap).ToArray();
+        Assert.Equal(7, ft.Length);
+        Assert.Equal(ft, signal.Series[0]);
+        Assert.All(index.IndicesOfLevel(1).Except(ft), i => Assert.False(signal.Covers(i)));
+        var ms1 = ft.Select(i => signal.IntensityByScan()[i]).ToArray();
+        var tic = ft.Select(i => index[i].TotalIonCurrent).ToArray();
         _out.WriteLine($"{signal.Features.Count} features; MS1 peptide-like/TIC: "
             + string.Join(" ", ms1.Zip(tic, (p, t) => (p / t).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))));
         Assert.NotEmpty(signal.Features);

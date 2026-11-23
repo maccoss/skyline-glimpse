@@ -140,17 +140,18 @@ public class HardklorTests
     [Fact]
     public void PwizModel_SumsFineStructureIntoNominalPeaks()
     {
-        // C100: binomial with p(13C) = 0.0107 (pwiz's NIST abundances).
+        // C100: binomial with p(13C) = 0.01084 (Dwight Matthews' value, in place of pwiz's NIST 0.0107).
         var peaks = Model.Distribution(new ElementCounts(100, 0, 0, 0, 0), 0.01);
         Assert.Equal(1200.0, peaks[0].Mass, 9);
         Assert.Equal(1201.0033548378, peaks[1].Mass, 7);
         Assert.Equal(1202.0067096756, peaks[2].Mass, 7);
         // M+1 / M+0 = 100 p / (1 - p) = 1.0816, so M+1 is the most abundant (relative 1);
         // M+0 = (1 - p) / (100 p), M+2 / M+1 = 49.5 p / (1 - p).
-        Assert.Equal(0.92457943925233643, peaks[0].Abundance, 9);
+        Assert.Equal(0.91250922509225092, peaks[0].Abundance, 9);
         Assert.Equal(1.0, peaks[1].Abundance);
-        Assert.Equal(0.53537855049, peaks[2].Abundance, 9);
-        Assert.Equal(0.189157, peaks[3].Abundance, 5);   // 1617 p^2 / (1 - p)^2
+        Assert.Equal(0.54246026932, peaks[2].Abundance, 9);
+        Assert.Equal(0.194194, peaks[3].Abundance, 5);   // 1617 p^2 / (1 - p)^2
+        Assert.Equal(0.01084, PwizEnvelopeModel.Carbon13Abundance);
         Assert.Equal(1201.0033548378, peaks[1].Mass, 9);
     }
 
@@ -527,23 +528,24 @@ public class HardklorTests
     }
 
     /// <remarks>
-    /// small_orbitrap.hk is Skyline's configuration. Hardklor.exe then models isotopes with Skyline's
-    /// traditional abundances (13C 0.01084) and PwizEnvelopeModel with pwiz's NIST ones (13C 0.0107), so
-    /// envelopes near the correlation threshold fall on different sides of it, and each difference changes
-    /// what is left of the spectrum for the next envelope. Measured: Hardklor.exe 1043, ours 1062, 95.8% of
-    /// Hardklor.exe's found and 94.2% of ours matched. small_fticr_pwizabund.hk gave Hardklor.exe pwiz's
-    /// abundances (see TestFiles/Hardklor/README.md): Hardklor.exe 1032, ours 1026, 98.5% and 99.1%, with
-    /// identical intensities; what remains is Mercury's approximate peak masses against exact ones.
+    /// small_orbitrap.hk is Skyline's configuration. Hardklor.exe models isotopes with its built-in abundances
+    /// and PwizEnvelopeModel with pwiz's, both with 13C 0.01084 (Dwight Matthews); the small H, N, O and S
+    /// differences put a few envelopes near the correlation threshold on different sides of it, and each
+    /// difference changes what is left of the spectrum for the next envelope. Measured: Hardklor.exe 1043, ours
+    /// 1046, 98.0% of Hardklor.exe's found and 97.7% of ours matched (with pwiz's NIST 13C 0.0107 it was 95.8%
+    /// and 94.2%). small_fticr_matthews.hk gave Hardklor.exe PwizEnvelopeModel's exact abundances (see
+    /// TestFiles/Hardklor/README.md): Hardklor.exe 1014, ours 1011, 98.6% and 98.9%, with identical
+    /// intensities; what remains is Mercury's approximate peak masses against exact ones.
     /// <para>The last values pin this port's own output (envelopes, matched, peaks, sum of peak indices, sum
     /// of masses, sum of intensities), recorded once it agreed with Hardklor.exe as above: the agreement
     /// thresholds alone let small changes to the algorithm through. A new Thermo reader that centroids
     /// small.RAW differently changes them too; re-record them only after checking the agreement.</para>
     /// </remarks>
     [Theory]
-    [InlineData("small_orbitrap.hk", HardklorInstrument.Orbitrap, 60000, 0.95, 0.93, 0.02,
-        1062, 1000, 2883, 2959495L, 1293577.8054557114, 100370345.30926514)]
-    [InlineData("small_fticr_pwizabund.hk", HardklorInstrument.Fticr, 100000, 0.98, 0.985, 0.001,
-        1026, 1017, 2771, 2890086L, 1235279.3858553693, 98338504.98590088)]
+    [InlineData("small_orbitrap.hk", HardklorInstrument.Orbitrap, 60000, 0.975, 0.97, 0.005,
+        1046, 1022, 2841, 2910667L, 1268054.0725338485, 100384530.77600098)]
+    [InlineData("small_fticr_matthews.hk", HardklorInstrument.Fticr, 100000, 0.98, 0.985, 0.001,
+        1011, 1000, 2729, 2842907L, 1209274.3900068176, 98286475.28387451)]
     public void AgreesWithHardklorExe(string hkName, HardklorInstrument instrument, double resolution,
         double minRecall, double minPrecision, double intensityTolerance,
         int pinnedCount, int pinnedMatched, int pinnedPeaks, long pinnedIndexSum, double pinnedMassSum, double pinnedIntensitySum)

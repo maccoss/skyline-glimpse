@@ -20,6 +20,11 @@ public class PeptideLikeTests
 
         public int Calls => _calls;
 
+        /// <summary>Analyzers it refuses, as the real finder refuses the ion trap.</summary>
+        public Glimpse.Core.Data.MassAnalyzer[] Refused { get; init; } = Array.Empty<Glimpse.Core.Data.MassAnalyzer>();
+
+        public bool CanSearch(Glimpse.Core.Data.MassAnalyzer analyzer) => !Refused.Contains(analyzer);
+
         public IReadOnlyList<IsotopeEnvelope> Find(double[] mz, double[] intensity, Glimpse.Core.Data.MassAnalyzer analyzer)
         {
             Interlocked.Increment(ref _calls);
@@ -142,6 +147,32 @@ public class PeptideLikeTests
         Assert.Single(signal.Series);                                                     // MS1 only
         Assert.All(signal.Series[0], i => Assert.True(signal.Covers(i)));
         Assert.Equal(signal.Series[0].Length, signal.IntensityByScan().Count(v => !double.IsNaN(v)));
+    }
+
+    [Fact]
+    public void ScansTheFinderCannotSearchAreLeftOut()
+    {
+        // Orbitrap MS1 scans and ion trap MS1 scans in turn (a Tribrid), and ion trap DIA MS2.
+        var source = new FakeSource();
+        for (var c = 0; c < 3; c++)
+        {
+            source.Ms1(1 + c * 0.1, new[] { 500.0 }, new[] { 10.0 }, 10f, Glimpse.Core.Data.MassAnalyzer.Orbitrap);
+            source.Ms1(1.05 + c * 0.1, new[] { 500.0 }, new[] { 10.0 }, 10f, Glimpse.Core.Data.MassAnalyzer.IonTrap);
+            source.Ms2(1.07 + c * 0.1, 400, 410, new[] { 300.0 }, new[] { 5.0 }, 10f, Glimpse.Core.Data.MassAnalyzer.IonTrap);
+        }
+        var finder = new PatternFinder((500.0, 2, 1)) { Refused = new[] { Glimpse.Core.Data.MassAnalyzer.IonTrap } };
+        var signal = Run(source, finder);
+        Assert.Equal(3, finder.Calls);                                        // the Orbitrap scans only
+        Assert.Equal(new[] { 0, 3, 6 }, Assert.Single(signal.Series));
+        Assert.True(signal.CoversAny);
+        Assert.False(signal.Covers(1));
+        Assert.Equal(new[] { 10.0, double.NaN, double.NaN, 10, double.NaN, double.NaN, 10, double.NaN, double.NaN }, signal.IntensityByScan());
+
+        // All ion trap (a Stellar): nothing searched.
+        var stellar = new FakeSource()
+            .Ms1(1.0, new[] { 500.0 }, new[] { 10.0 }, 10f, Glimpse.Core.Data.MassAnalyzer.IonTrap)
+            .Ms1(1.1, new[] { 500.0 }, new[] { 10.0 }, 10f, Glimpse.Core.Data.MassAnalyzer.IonTrap);
+        Assert.False(Run(stellar, finder).CoversAny);
     }
 
     [Fact]

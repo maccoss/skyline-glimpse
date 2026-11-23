@@ -356,6 +356,12 @@ public partial class MainWindow : Window
             var signal = await search.Completion;
             if (_run != run)
                 return;
+            if (!signal.CoversAny)
+            {
+                App.WriteLog($"Peptide-like signal for {Path.GetFileName(run.Index.FilePath)}: no scans searched (ion trap data)");
+                PeptideLikeCheck.Content = "Peptide-like (not for ion trap data)";
+                return;
+            }
             run.PeptideLike = signal;
             App.WriteLog($"Peptide-like signal for {Path.GetFileName(run.Index.FilePath)}: {signal.Features.Count:N0} persistent features "
                 + $"in {signal.Series.Count:N0} series{(signal.IsDda ? " (DDA: MS1 only)" : "")}, {clock.Elapsed.TotalSeconds:0.0} s after the pass");
