@@ -88,6 +88,51 @@ public sealed record GlimpseSettings
     /// <summary>α per instrument model and analyzer, starting from Hsu et al. 2025 (Table 1).</summary>
     public IReadOnlyList<AlphaEntry> IonCalibration { get; init; } = IonCalibrationTable.Published;
 
+    /// <summary>
+    /// Lowest charge of an MS1 isotope envelope that counts as peptide-like: 1 counts every envelope, 2 only
+    /// multiply charged ones (most persistent 1+ envelopes are contaminants). MS2 counts every charge.
+    /// </summary>
+    public int PeptideLikeMs1MinCharge { get; init; } = 1;
+
+    /// <summary>Decimal places of the m/z in a spectrum's peptide-like envelope labels ("542.29 2+").</summary>
+    public int PeptideLikeLabelDecimals { get; init; } = 2;
+
+    /// <summary>The most decimal places an envelope label may show.</summary>
+    public const int MaxLabelDecimals = 6;
+
+    /// <summary>Hardklör: the highest charge state an isotope envelope is tried at (Skyline's setting: 7).</summary>
+    public int HardklorMaxCharge { get; init; } = 7;
+
+    /// <summary>
+    /// Hardklör: most envelopes kept whose base peaks lie within 0.5 m/z of each other (Skyline's <c>depth</c>: 2);
+    /// the least intense of the rest are dropped.
+    /// </summary>
+    public int HardklorDepth { get; init; } = 2;
+
+    /// <summary>
+    /// Hardklör: the lowest isotope dot product (idotp) between an envelope and its model. Glimpse's default is
+    /// 0.85 (Skyline's Hardklor setting is 0.9).
+    /// </summary>
+    public double HardklorMinIdotP { get; init; } = DefaultMinIdotP;
+
+    public const double DefaultMinIdotP = 0.85;
+
+    /// <summary>Kronik: the largest mass difference, in ppm, between envelopes linked across scans.</summary>
+    public double KronikPpmTolerance { get; init; } = 10;
+
+    /// <summary>Kronik: scans in a row that may miss an envelope before its feature ends.</summary>
+    public int KronikGapTolerance { get; init; } = 1;
+
+    /// <summary>Kronik: the fewest scans an envelope must be found in to be peptide-like. Glimpse's default is 2 (Kronik's is 3).</summary>
+    public int KronikMinScans { get; init; } = 2;
+
+    /// <summary>Ranges the search settings are kept in.</summary>
+    public const int MaxHardklorCharge = 10, MaxDepth = 10, MaxGapTolerance = 5, MaxMinScans = 20;
+
+    public const double MinIdotP = 0.5, MaxIdotP = 0.99;
+
+    public const double MinPpm = 0.1, MaxPpm = 100;
+
     public static string DefaultPath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SkylineGlimpse", "settings.json");
 
@@ -147,6 +192,14 @@ public sealed record GlimpseSettings
     public GlimpseSettings Validated() => this with
     {
         Figures = (Figures ?? FigureSettings.Default).Validated(),
+        PeptideLikeMs1MinCharge = Math.Clamp(PeptideLikeMs1MinCharge, 1, 2),
+        PeptideLikeLabelDecimals = Math.Clamp(PeptideLikeLabelDecimals, 0, MaxLabelDecimals),
+        HardklorMaxCharge = Math.Clamp(HardklorMaxCharge, 1, MaxHardklorCharge),
+        HardklorDepth = Math.Clamp(HardklorDepth, 1, MaxDepth),
+        HardklorMinIdotP = double.IsFinite(HardklorMinIdotP) ? Math.Clamp(HardklorMinIdotP, MinIdotP, MaxIdotP) : DefaultMinIdotP,
+        KronikPpmTolerance = double.IsFinite(KronikPpmTolerance) ? Math.Clamp(KronikPpmTolerance, MinPpm, MaxPpm) : 10,
+        KronikGapTolerance = Math.Clamp(KronikGapTolerance, 0, MaxGapTolerance),
+        KronikMinScans = Math.Clamp(KronikMinScans, 1, MaxMinScans),
         IonCalibration = IonCalibration is null
             ? IonCalibrationTable.Published
             : IonCalibration.Where(e => e is not null && !string.IsNullOrWhiteSpace(e.Instrument) && double.IsFinite(e.Alpha) && e.Alpha > 0)

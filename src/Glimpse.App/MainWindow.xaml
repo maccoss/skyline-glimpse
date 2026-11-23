@@ -146,6 +146,9 @@
                                 <CheckBox x:Name="AssignedCheck" Content="Assigned" Margin="12,0,4,0" VerticalAlignment="Center"
                                           Checked="OnViewOptionChanged" Unchecked="OnViewOptionChanged"
                                           ToolTip="Signal in each scan that belongs to document peptides (each peak counted once)" />
+                                <CheckBox x:Name="PeptideLikeCheck" Content="Peptide-like" Margin="4,0" VerticalAlignment="Center" IsEnabled="False"
+                                          Checked="OnViewOptionChanged" Unchecked="OnViewOptionChanged"
+                                          ToolTip="Signal in isotope envelopes that persist over several scans (Hardklor and Kronik): MS1, and MS2 in DIA; not for ion trap scans, which cannot resolve the isotopes of multiply charged ions. The gap to Assigned is peptide-like signal no document peptide explains." />
                                 <TextBlock Text="XIC:" Margin="12,0,4,0" VerticalAlignment="Center" />
                                 <ComboBox x:Name="XicModeCombo" Width="110" SelectedIndex="0" SelectionChanged="OnXicModeChanged"
                                           ToolTip="XICs of the selected peptides: none, one summed trace, one per protein, or one per peptide (no limit)">
@@ -217,6 +220,9 @@
                         <CheckBox x:Name="DuplicatesCheck" Content="Duplicates" Margin="6,0" VerticalAlignment="Center"
                                   Checked="OnLabelOptionChanged" Unchecked="OnLabelOptionChanged"
                                   ToolTip="Show every ion a shared peak matches, not just the first" />
+                        <CheckBox x:Name="PeptideLikeLabelsCheck" Content="Peptide-like" IsChecked="True" Margin="6,0" VerticalAlignment="Center"
+                                  Checked="OnPeptideLikeLabelsChanged" Unchecked="OnPeptideLikeLabelsChanged"
+                                  ToolTip="Mark isotope envelopes that persist over several scans but no document peptide explains: their peaks in black, labeled with monoisotopic m/z and charge" />
                         <Button Content="Reset zoom" Margin="12,0,0,0" Padding="6,0" Click="OnResetSpectrumZoom" ToolTip="Show the whole plot again (or double-click or middle-click the plot)" />
                     </StackPanel>
                     <DockPanel DockPanel.Dock="Top" Margin="2">

@@ -62,8 +62,9 @@ focused peptide.*
 
 *Fibrinogen gamma's 36 peptides selected in Skyline: their MS2 fragment XICs (right axis) over the
 whole-run MS1 TIC. Clicking a trace at 11.46 min opened that DIA scan: six document peptides share
-the 3 m/z window, and TNLLQVC[+57]ER's b and y ions explain 15% of its signal. Black peaks marked `*`
-are claimed by more than one peptide.*
+the 3 m/z window, and TNLLQVC[+57]ER's b and y ions explain 15% of its signal. Peaks marked `*` (magenta when no
+peptide is focused) are claimed by more than one peptide. No peptide is drawn black or grey: grey peaks are
+unassigned, black ones peptide-like envelopes no document peptide explains.*
 
 ![XICs of every peptide in the document across the whole run](docs/images/xic-every-peptide.png)
 
@@ -75,6 +76,43 @@ run (intensity zoomed to the bulk of the peaks).*
   (Skyline-PRISM's ion-accounting rule).
 
 ![MS1 TIC with the signal assigned to document peptides beneath it](docs/images/chromatogram-assigned.png)
+
+### Peptide-like signal
+
+How much of a run's signal could be peptides, and how much of that the document explains. While a file is
+read, Glimpse finds the isotope envelopes in every MS1 scan, and in every MS2 scan of a DIA run, on worker
+threads, with a C# port of Hardklor (Hoopmann et al., Anal. Chem. 2007). After the pass it links them across
+scans as Bullseye's Kronik does (Hsieh et al., J. Proteome Res. 2010): an envelope found in at least 2 scans,
+at the same charge within 10 ppm, with one missed scan allowed, is peptide-like. MS2 envelopes are linked
+within each isolation window; DDA runs are MS1 only.
+
+The **Peptide-like** trace sums the peaks of those envelopes in each scan, next to the TIC and the Assigned
+trace: the gap between Peptide-like and Assigned is signal that looks like peptides but no document peptide
+explains, and the rest of the TIC is signal there is little chance to identify. Settings (Peptide-like) hold the
+Hardklor settings (highest charge state, overlapping envelopes kept, minimum isotope dot product) and the
+Kronik settings (mass tolerance, missed scans, fewest scans). The defaults are Skyline's and Kronik's except a
+minimum isotope dot product of 0.85 (Skyline 0.9) and 2 scans (Kronik 3). In the spectrum, the
+envelopes behind that gap are drawn in black and labeled with their monoisotopic m/z and charge
+(`542.29 2+`, decimals set in Settings), next to the document peptides' colored ions; *Peptide-like* above the
+spectrum turns them off. Settings can restrict MS1 to
+multiply charged envelopes; MS2 counts every charge. Ion trap scans (a Stellar, a Tribrid's linear ion trap)
+are not searched: they cannot resolve the isotopes of multiply charged ions.
+
+The isotope model uses pwiz's isotope tables with 13C at 1.084% (Dwight Matthews' value, as in IDCalc and
+Hardklor) and spaces isotope peaks by 1.00286864 Da, Monocle's averagine spacing (Rad et al., J. Proteome Res.
+2021), which fits observed isotope peaks within about 1 ppm. With Hardklor's own spacing the port finds exactly
+Hardklor.exe's envelopes; with Monocle's it agrees with Skyline's Hardklor configuration on about 98%.
+
+On a 174,000-spectrum Orbitrap Astral Zoom DIA run the search finished 6 s after the pass, finding 72% of the
+MS1 signal and 38% of the MS2 signal peptide-like (with Skyline's minimum isotope dot product of 0.9 and Kronik's
+3 scans; Glimpse's defaults of 0.85 and 2 scans find more).
+
+The search is saved beside the raw file as `run.hk` (or in `%LOCALAPPDATA%\SkylineGlimpse\cache` when that
+folder cannot be written), and reopening the file reads it instead of searching again. It is a Parquet file
+with one row per isotope envelope: scan, MS level, retention time, series (MS1 or DIA window), monoisotopic
+mass, charge, intensity, base peak m/z, correlation, m/z range, the persistent feature it belongs to, and its
+scan's peptide-like signal. It is replaced when the raw file or the search settings change. For the run above
+it is 396 MB, written in 4 s and read in 5 s.
 
 ### Heatmaps
 

@@ -91,13 +91,17 @@ public partial class MainWindow
         // millionth of an MS1 TIC and lie flat on a shared axis).
         var runAxis = plot.Axes.Left;
         var hasRunTraces = TicCheck.IsChecked == true || BpcCheck.IsChecked == true
-            || (AssignedCheck.IsChecked == true && _run.Signals is not null);
+            || (AssignedCheck.IsChecked == true && _run.Signals is not null)
+            || (PeptideLikeCheck.IsChecked == true && _run.PeptideLike is not null);
         var separateXicAxis = hasXics && hasRunTraces && XicSeparateCheck.IsChecked == true;
 
         if (TicCheck.IsChecked == true)
             AddTrace(plot, RunChromatogram.Build(_run.Index, RunTraceKind.Tic, filter, units, Calibration), Colors.Black, runAxis, hasXics);
         if (BpcCheck.IsChecked == true)
             AddTrace(plot, RunChromatogram.Build(_run.Index, RunTraceKind.BasePeak, filter, units, Calibration), Color.FromHex("#1F4E9A"), runAxis, hasXics);
+        // Under the assigned trace: peptide-like signal is mostly larger, and would hide it.
+        if (PeptideLikeCheck.IsChecked == true && _run.PeptideLike is { } peptideLike)
+            AddTrace(plot, PeptideLikeTrace(peptideLike, filter, units), Color.FromHex("#C05A00"), runAxis, hasXics);
         if (AssignedCheck.IsChecked == true && _run.Signals is { } signals)
         {
             // Drawn over the TIC: total and assigned side by side, the gap between them unassigned.
@@ -245,6 +249,30 @@ public partial class MainWindow
         var toWhite = Math.Min(0.6, 0.3 * rank);
         byte Mix(byte c) => (byte)(c + (255 - c) * toWhite);
         return new Color(Mix(peptideColor.R), Mix(peptideColor.G), Mix(peptideColor.B), peptideColor.A);
+    }
+
+    /// <summary>
+    /// Per scan of the filter that was searched for isotope envelopes: the signal in persistent envelopes. Scans
+    /// not searched (MS2 of a DDA run, a window seen once) are left out.
+    /// </summary>
+    private Trace PeptideLikeTrace(Features.PeptideLikeSignal signal, ScanFilter filter, IntensityUnits units)
+    {
+        var calibration = Calibration;
+        var byScan = signal.IntensityByScan(_glimpseSettings.PeptideLikeMs1MinCharge);
+        var tic = RunChromatogram.Build(_run!.Index, RunTraceKind.Tic, filter, units, calibration);
+        var times = new List<double>();
+        var values = new List<double>();
+        var scans = new List<int>();
+        for (var i = 0; i < tic.Count; i++)
+        {
+            var h = _run.Index[tic.ScanIndices[i]];
+            if (double.IsNaN(byScan[h.Index]))
+                continue;
+            times.Add(tic.Times[i]);
+            values.Add(IntensityConversion.Convert(byScan[h.Index], h, units, calibration));
+            scans.Add(h.Index);
+        }
+        return new Trace($"Peptide-like ({filter.Describe()})", times.ToArray(), values.ToArray(), scans.ToArray());
     }
 
     /// <summary>Per scan of the filter: the signal document peptides claim.</summary>

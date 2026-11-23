@@ -9,7 +9,8 @@ namespace Glimpse.Plotting;
 /// </summary>
 public static class PeptideColors
 {
-    // Tableau 20, minus the two greys (grey means "unassigned" here).
+    // Tableau 20, minus the two greys. No peptide is ever drawn black or grey: grey means unassigned, and
+    // black a peptide-like isotope envelope no document peptide explains.
     private static readonly Color[] Palette =
     {
         Color.FromHex("#1f77b4"), Color.FromHex("#ff7f0e"), Color.FromHex("#2ca02c"), Color.FromHex("#d62728"),
@@ -19,8 +20,16 @@ public static class PeptideColors
         Color.FromHex("#dbdb8d"), Color.FromHex("#9edae5"),
     };
 
-    /// <summary>Color for a peak shared by more than one peptide.</summary>
-    public static Color Shared { get; } = Color.FromHex("#202020");
+    /// <summary>Color for a peak shared by more than one peptide: a vivid magenta no peptide has (never black or grey).</summary>
+    public static Color Shared { get; } = Color.FromHex("#c800c8");
+
+    /// <summary>
+    /// A peptide's color dimmed (a peptide other than the focused one): its own hue, 70% of the way to white,
+    /// so it stays a peptide's color rather than turning the grey of unassigned peaks.
+    /// </summary>
+    public static Color Dimmed(Color color) => new(
+        (byte)Math.Round(color.R + (255 - color.R) * 0.7), (byte)Math.Round(color.G + (255 - color.G) * 0.7),
+        (byte)Math.Round(color.B + (255 - color.B) * 0.7));
 
     public static Color For(DocPeptide peptide) => ForKey(peptide.Protein.Name + "/" + peptide.ModifiedSequence);
 
@@ -46,6 +55,9 @@ public static class PeptideColors
     }
 
     public static int PaletteSize => Palette.Length;
+
+    /// <summary>The palette, for checking it.</summary>
+    internal static IReadOnlyList<Color> All => Palette;
 
     private static uint Slot(string key)
     {

@@ -29,6 +29,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Glimpse.Core\Glimpse.Core.csproj" />
+    <ProjectReference Include="..\Glimpse.Features\Glimpse.Features.csproj" />
   </ItemGroup>
 
   <ItemGroup>

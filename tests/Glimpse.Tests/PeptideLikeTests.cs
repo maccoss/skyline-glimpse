@@ -1,0 +1,238 @@
+using Glimpse.Core.Data;
+using Glimpse.Core.Scans;
+using Glimpse.Features;
+using Xunit;
+
+namespace Glimpse.Tests;
+
+/// <summary>The peptide-like signal: envelopes found on worker threads during the pass, linked after it.</summary>
+public class PeptideLikeTests
+{
+    private static PeptideLikeSignal Run(FakeSource source, IEnvelopeFinder finder, KronikSettings? linking = null)
+    {
+        using var observer = new PeptideLikeObserver(finder, linking, workers: 3);
+        ScanIndexBuilder.Build(source, false, new IScanObserver[] { observer });
+        return observer.Completion.Wait(TimeSpan.FromSeconds(30)) ? observer.Completion.Result : throw new TimeoutException();
+    }
+
+    [Fact]
+    public void PersistentMs1EnvelopesArePeptideLike()
+    {
+        // A 2+ envelope (500.0, 500.5, 501.0) in four scans; a 1+ envelope at 700 in three; a 3+ one at 800 in one.
+        var source = new FakeSource();
+        for (var s = 0; s < 4; s++)
+        {
+            var mz = new List<double> { 500.0, 500.5, 501.0 };
+            var intensity = new List<double> { 100, 50, 25 };
+            if (s < 3) { mz.Add(700); intensity.Add(40); }
+            if (s == 0) { mz.Add(800); intensity.Add(1000); }
+            source.Ms1(1 + s * 0.1, mz.ToArray(), intensity.ToArray());
+        }
+        var signal = Run(source, new PatternEnvelopeFinder((500.0, 2, 3), (700, 1, 1), (800, 3, 1)));
+
+        Assert.Equal(new[] { 215.0, 215, 215, 175 }, signal.IntensityByScan());            // 175 + the 1+ at 700
+        Assert.Equal(new[] { 175.0, 175, 175, 175 }, signal.IntensityByScan(ms1MinCharge: 2));
+        Assert.Equal(new[] { 0.0, 0, 0, 0 }, signal.IntensityByScan(ms1MinCharge: 3));     // the 3+ is in one scan only
+        Assert.Same(signal.IntensityByScan(2), signal.IntensityByScan(2));                // computed once
+        Assert.Equal(new[] { 0, 1, 2, 3 }, signal.PeptideLikePeaks(0));                   // not the 800 peak (index 4)
+        Assert.Equal(new[] { 0, 1, 2 }, signal.PeptideLikePeaks(0, ms1MinCharge: 2));
+        Assert.Equal(2, signal.Features.Count);
+        Assert.All(signal.Features, f => Assert.Equal(0, f.Series));
+        Assert.Equal(new[] { 0, 1, 2, 3 }, Assert.Single(signal.Series));
+        Assert.False(signal.IsDda);
+    }
+
+    [Fact]
+    public void TheLinkingSettingsDecideWhatPersists()
+    {
+        // An envelope in two scans: not peptide-like with Kronik's 3, peptide-like when 2 scans are enough.
+        var source = new FakeSource()
+            .Ms1(1.0, new[] { 500.0, 500.5 }, new[] { 100.0, 50 })
+            .Ms1(1.1, new[] { 500.0, 500.5 }, new[] { 100.0, 50 });
+        var finder = new PatternEnvelopeFinder((500.0, 2, 2));
+        Assert.Empty(Run(source, finder).Features);
+        Assert.Single(Run(source, finder, KronikSettings.Default with { MinScans = 2 }).Features);
+    }
+
+    /// <summary>Throws on spectra whose first peak is at the given m/z, finds nothing otherwise.</summary>
+    private sealed class FailingFinder(double failAt) : IEnvelopeFinder
+    {
+        public bool CanSearch(Glimpse.Core.Data.MassAnalyzer analyzer) => true;
+
+        public IReadOnlyList<IsotopeEnvelope> Find(double[] mz, double[] intensity, Glimpse.Core.Data.MassAnalyzer analyzer) =>
+            Math.Abs(mz[0] - failAt) < 1e-6 ? throw new InvalidOperationException("bad spectrum") : Array.Empty<IsotopeEnvelope>();
+    }
+
+    [Fact]
+    public void AFailedSpectrumNeitherStopsTheSearchNorTheRead()
+    {
+        // 600 spectra through one worker (more than its 256-spectrum queue); every other one makes the finder throw.
+        var source = new FakeSource();
+        for (var i = 0; i < 600; i++)
+            source.Ms1(1 + i * 0.01, new[] { i % 2 == 0 ? 500.0 : 600.0 }, new[] { 10.0 });
+        using var observer = new PeptideLikeObserver(new FailingFinder(500.0), workers: 1);
+        var read = Task.Run(() => ScanIndexBuilder.Build(source, false, new IScanObserver[] { observer }));
+        Assert.True(read.Wait(TimeSpan.FromSeconds(30)), "the read finished");
+        Assert.True(observer.Completion.Wait(TimeSpan.FromSeconds(30)), "the search finished");
+        var signal = observer.Completion.Result;
+        Assert.Equal(300, signal.FailedScans);
+        Assert.Equal(600, signal.IntensityByScan().Count(v => v == 0));      // failed scans: searched, no envelopes
+    }
+
+    [Fact]
+    public void ProfileSpectraAreNotSearched()
+    {
+        var source = new FakeSource();
+        for (var s = 0; s < 3; s++)
+            source.Ms1(1 + s * 0.1, new[] { 500.0, 500.5, 501.0 }, new[] { 100.0, 50, 25 });
+        var profile = new ProfileSource(source);
+        var finder = new PatternEnvelopeFinder((500.0, 2, 3));
+        using var observer = new PeptideLikeObserver(finder, workers: 2);
+        ScanIndexBuilder.Build(profile, false, new IScanObserver[] { observer });
+        Assert.True(observer.Completion.Wait(TimeSpan.FromSeconds(30)));
+        Assert.Equal(0, finder.Calls);
+        Assert.False(observer.Completion.Result.CoversAny);
+    }
+
+    /// <summary>The same spectra, marked as profile data.</summary>
+    private sealed class ProfileSource(FakeSource inner) : IMsDataSource
+    {
+        public string FilePath => inner.FilePath;
+        public int SpectrumCount => inner.SpectrumCount;
+        public RunInfo Run => inner.Run;
+        public bool CanVendorCentroid => false;
+        public double ReadRetentionTime(int index) => inner.ReadRetentionTime(index);
+        public void Dispose() { }
+
+        public SpectrumData ReadSpectrum(int index, bool centroid)
+        {
+            var s = inner.ReadSpectrum(index, centroid);
+            return new SpectrumData(s.Header with { Centroided = false }, s.Mz, s.Intensity, s.Details);
+        }
+    }
+
+    [Fact]
+    public void APeakInTwoEnvelopesCountsOnce()
+    {
+        // Envelopes 500.0 (2+, three peaks) and 501.0 (1+, two peaks) share the 501.0 peak.
+        var source = new FakeSource();
+        for (var s = 0; s < 3; s++)
+            source.Ms1(1 + s * 0.1, new[] { 500.0, 500.5, 501.0, 502.0 }, new[] { 100.0, 50, 25, 5 });
+        var signal = Run(source, new PatternEnvelopeFinder((500.0, 2, 3), (501.0, 1, 2)));
+        Assert.Equal(180.0, signal.IntensityByScan()[0]);   // 100 + 50 + 25 + 5, the shared 25 once
+    }
+
+    [Fact]
+    public void DiaWindowsPersistOnTheirOwnAndMs2CountsSinglyCharged()
+    {
+        // Three cycles of MS1 + windows A (400-410) and B (410-420). A has a 1+ envelope every cycle; B only once.
+        var source = new FakeSource();
+        for (var c = 0; c < 3; c++)
+        {
+            var rt = 1 + c * 0.1;
+            source.Ms1(rt, new[] { 450.0 }, new[] { 10.0 });
+            source.Ms2(rt + 0.01, 400, 410, new[] { 300.0, 301.0 }, new[] { 80.0, 20 });
+            source.Ms2(rt + 0.02, 410, 420, c == 1 ? new[] { 600.0 } : new[] { 650.0 }, new[] { 9.0 });
+        }
+        var finder = new PatternEnvelopeFinder((300.0, 1, 2), (600.0, 1, 1));
+        var signal = Run(source, finder);
+
+        var tic = signal.IntensityByScan(ms1MinCharge: 2);
+        Assert.Equal(new[] { 0.0, 100, 0, 0, 100, 0, 0, 100, 0 }, tic);                  // 1+ counts in MS2
+        Assert.Equal(3, signal.Series.Count);                                              // MS1, A, B
+        Assert.Equal(new[] { 1, 4, 7 }, signal.Series[1]);
+        Assert.Equal(1, Assert.Single(signal.Features).Series);
+        Assert.Equal(9, finder.Calls);                                                     // every scan searched once
+    }
+
+    [Fact]
+    public void AWindowSeenOnceIsNotSearched()
+    {
+        var source = new FakeSource()
+            .Ms1(1.0, new[] { 450.0 }, new[] { 10.0 })
+            .Ms2(1.01, 400, 410, new[] { 300.0 }, new[] { 5.0 })
+            .Ms2(1.02, 500, 510, new[] { 300.0 }, new[] { 5.0 })
+            .Ms2(1.03, 400, 410, new[] { 300.0 }, new[] { 5.0 });
+        var finder = new PatternEnvelopeFinder();
+        var signal = Run(source, finder);
+        Assert.Equal(3, finder.Calls);                       // the MS1 and both 400-410 scans
+        Assert.True(signal.Covers(1));
+        Assert.False(signal.Covers(2));
+        Assert.True(double.IsNaN(signal.IntensityByScan()[2]));
+        Assert.Equal(0.0, signal.IntensityByScan()[1]);
+        Assert.Empty(signal.PeptideLikePeaks(2));
+    }
+
+    [Fact]
+    public void ADdaRunHasNoMs2Signal()
+    {
+        // A new isolation window for every MS2 scan: more than the DIA limit means DDA.
+        var source = new FakeSource();
+        for (var i = 0; i < PeptideLikeObserver.MaxDiaWindows + 5; i++)
+        {
+            if (i % 50 == 0)
+                source.Ms1(1 + i * 0.001, new[] { 450.0 }, new[] { 10.0 });
+            var lo = 400 + i * 0.37;
+            source.Ms2(1 + i * 0.001 + 0.0005, lo, lo + 2, new[] { 300.0 }, new[] { 5.0 });
+            if (i % 7 == 0)
+                source.Ms2(1 + i * 0.001 + 0.0007, lo, lo + 2, new[] { 300.0 }, new[] { 5.0 });   // some come back
+        }
+        var signal = Run(source, new PatternEnvelopeFinder());
+        Assert.True(signal.IsDda);
+        Assert.Single(signal.Series);                                                     // MS1 only
+        Assert.All(signal.Series[0], i => Assert.True(signal.Covers(i)));
+        Assert.Equal(signal.Series[0].Length, signal.IntensityByScan().Count(v => !double.IsNaN(v)));
+    }
+
+    [Fact]
+    public void ScansTheFinderCannotSearchAreLeftOut()
+    {
+        // Orbitrap MS1 scans and ion trap MS1 scans in turn (a Tribrid), and ion trap DIA MS2.
+        var source = new FakeSource();
+        for (var c = 0; c < 3; c++)
+        {
+            source.Ms1(1 + c * 0.1, new[] { 500.0 }, new[] { 10.0 }, 10f, Glimpse.Core.Data.MassAnalyzer.Orbitrap);
+            source.Ms1(1.05 + c * 0.1, new[] { 500.0 }, new[] { 10.0 }, 10f, Glimpse.Core.Data.MassAnalyzer.IonTrap);
+            source.Ms2(1.07 + c * 0.1, 400, 410, new[] { 300.0 }, new[] { 5.0 }, 10f, Glimpse.Core.Data.MassAnalyzer.IonTrap);
+        }
+        var finder = new PatternEnvelopeFinder((500.0, 2, 1)) { Refused = new[] { Glimpse.Core.Data.MassAnalyzer.IonTrap } };
+        var signal = Run(source, finder);
+        Assert.Equal(3, finder.Calls);                                        // the Orbitrap scans only
+        Assert.Equal(new[] { 0, 3, 6 }, Assert.Single(signal.Series));
+        Assert.True(signal.CoversAny);
+        Assert.False(signal.Covers(1));
+        Assert.Equal(new[] { 10.0, double.NaN, double.NaN, 10, double.NaN, double.NaN, 10, double.NaN, double.NaN }, signal.IntensityByScan());
+
+        // All ion trap (a Stellar): nothing searched.
+        var stellar = new FakeSource()
+            .Ms1(1.0, new[] { 500.0 }, new[] { 10.0 }, 10f, Glimpse.Core.Data.MassAnalyzer.IonTrap)
+            .Ms1(1.1, new[] { 500.0 }, new[] { 10.0 }, 10f, Glimpse.Core.Data.MassAnalyzer.IonTrap);
+        Assert.False(Run(stellar, finder).CoversAny);
+    }
+
+    [Fact]
+    public void AnAbandonedPassCancelsTheSearch()
+    {
+        var observer = new PeptideLikeObserver(new PatternEnvelopeFinder(), workers: 2);
+        observer.Begin(10, 0, 1);
+        observer.Dispose();
+        Assert.True(observer.Completion.IsCanceled);
+    }
+
+    [Fact]
+    public void ScanEnvelopesKeepEachEnvelopesPeaks()
+    {
+        var envelopes = new[]
+        {
+            new IsotopeEnvelope(998, 2, 175, 500, 0.9, 500, 501, new[] { 2, 3, 4 }),
+            new IsotopeEnvelope(500, 1, 30, 501, 0.9, 501, 502, new[] { 4, 7 }),
+        };
+        var compact = ScanEnvelopes.From(envelopes, new[] { 0.0, 1, 2, 3, 4, 5, 6, 7 });
+        Assert.Equal(new[] { 2, 3, 4, 7 }, compact.PeakIndex);
+        Assert.Equal(new[] { 2f, 3, 4, 7 }, compact.PeakIntensity);
+        Assert.Equal(new ushort[] { 0, 1, 2 }, compact.PeaksOf(0).ToArray());
+        Assert.Equal(new ushort[] { 2, 3 }, compact.PeaksOf(1).ToArray());
+        Assert.Equal(new[] { new EnvelopeKey(998, 2, 175), new EnvelopeKey(500, 1, 30) }, compact.Keys);
+        Assert.Same(ScanEnvelopes.Empty, ScanEnvelopes.From(Array.Empty<IsotopeEnvelope>(), Array.Empty<double>()));
+    }
+}

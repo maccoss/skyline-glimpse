@@ -63,11 +63,12 @@ public partial class MainWindow : Window
 
     private IonCalibration CalibrationFor(string? instrumentModel) => IonCalibration.For(instrumentModel, _glimpseSettings.IonCalibration);
 
-    private void OnSettings(object sender, RoutedEventArgs e)
+    private async void OnSettings(object sender, RoutedEventArgs e)
     {
         var dialog = new SettingsWindow(_glimpseSettings) { Owner = this };
         if (dialog.ShowDialog() != true)
             return;
+        var searchBefore = (HardklorSearch, Linking);
         _glimpseSettings = dialog.Result;
         try
         {
@@ -79,6 +80,17 @@ public partial class MainWindow : Window
             MessageBox.Show(this, "The settings apply now but could not be saved: " + ex.Message, "Glimpse", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         ApplyFigureSettings();
+
+        // The peptide-like search runs while a file is read: new Hardklor or Kronik settings need the run read again.
+        if (_run is { } run && searchBefore != (HardklorSearch, Linking)
+            && MessageBox.Show(this,
+                $"The Hardklor or Kronik settings changed. Read {Path.GetFileName(run.Index.FilePath)} again now to find its peptide-like signal "
+                + "with them? It takes about as long as opening the file. Otherwise they apply to the next file opened.",
+                "Glimpse settings", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+        {
+            App.WriteLog($"Search settings changed: reading {run.Index.FilePath} again");
+            await OpenFileAsync(run.Index.FilePath);
+        }
     }
 
     /// <summary>Restyle every plot with the current settings and draw everything again.</summary>
@@ -253,7 +265,10 @@ public partial class MainWindow : Window
         var documentObserver = CreateDocumentObserver(path);
         try
         {
-            var run = await Task.Run(() => LoadedRun.Load(path, centroid, documentObserver, progress, preview, cts.Token), cts.Token);
+            var finder = CreateEnvelopeFinder();
+            var linking = Linking;
+            var search = HardklorSearch;
+            var run = await Task.Run(() => LoadedRun.Load(path, centroid, documentObserver, finder, linking, search, _hkStore, progress, preview, cts.Token), cts.Token);
             if (cts.IsCancellationRequested)
             {
                 run.Dispose();
@@ -333,6 +348,121 @@ public partial class MainWindow : Window
             _ = EnsureSignalsAsync(_run.Index.FilePath);
         else
             ReportSignals(_run);
+        _ = AwaitPeptideLikeAsync(_run);
+    }
+
+    /// <summary>Where runs' searches are saved (.hk files): beside the raw file, else Glimpse's cache folder.</summary>
+    private readonly Features.HkStore _hkStore = new(Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SkylineGlimpse", "cache"));
+
+    /// <summary>The isotope-envelope finder for a new run (Hardklor, with pwiz's isotope distributions).</summary>
+    private Features.IEnvelopeFinder? CreateEnvelopeFinder() => new Features.AnalyzerEnvelopeFinder(new PwizEnvelopeModel(), HardklorSearch);
+
+    /// <summary>Hardklör's search settings (Settings, Peptide-like): charge limit, depth, minimum isotope dot product.</summary>
+    private Features.Hardklor.HardklorSettings HardklorSearch => Features.Hardklor.HardklorSettings.Default with
+    {
+        MaxCharge = _glimpseSettings.HardklorMaxCharge,
+        Depth = _glimpseSettings.HardklorDepth,
+        Correlation = Features.Hardklor.HardklorSettings.CorrelationFromIdotP(_glimpseSettings.HardklorMinIdotP),
+    };
+
+    /// <summary>How the search links envelopes across scans (Settings, Peptide-like).</summary>
+    private Features.KronikSettings Linking => new(_glimpseSettings.KronikPpmTolerance, _glimpseSettings.KronikGapTolerance, _glimpseSettings.KronikMinScans);
+
+    /// <summary>Save a finished search beside the raw file (else in the cache), so reopening the file skips it.</summary>
+    private async Task SaveSearchAsync(LoadedRun run, Features.PeptideLikeSignal signal)
+    {
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            var where = await Task.Run(() => _hkStore.Save(run.Index.FilePath, signal, run.SearchStamp));
+            App.WriteLog($"Saved the peptide-like search to {where} in {clock.Elapsed.TotalSeconds:0.0} s");
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            App.WriteLog($"Could not save the peptide-like search for {Path.GetFileName(run.Index.FilePath)}: {ex}");
+        }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            App.WriteLog($"Could not delete {path}: {ex.Message}");
+        }
+    }
+
+    /// <summary>Wait for the run's isotope-envelope search (or read its saved one), then offer and draw the peptide-like trace.</summary>
+    private async Task AwaitPeptideLikeAsync(LoadedRun run)
+    {
+        PeptideLikeCheck.IsEnabled = false;
+        var file = Path.GetFileName(run.Index.FilePath);
+        if (run.PeptideLikeSearch is null && run.SavedSearch is null)
+        {
+            PeptideLikeCheck.Content = "Peptide-like";
+            return;
+        }
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            Features.PeptideLikeSignal? signal;
+            if (run.SavedSearch is { } saved)
+            {
+                PeptideLikeCheck.Content = "Peptide-like (reading...)";
+                var headers = run.Index.Headers.ToArray();
+                signal = await Task.Run(() => Features.HkFile.TryRead(saved, run.SearchStamp, headers));
+                if (_run != run)
+                    return;
+                if (signal is null)
+                {
+                    App.WriteLog($"Could not read the saved search {saved}; it will be searched again next time the file is opened");
+                    PeptideLikeCheck.Content = "Peptide-like (saved search unreadable)";
+                    TryDelete(saved);
+                    return;
+                }
+                App.WriteLog($"Read the saved search for {file} from {saved} in {clock.Elapsed.TotalSeconds:0.0} s");
+            }
+            else
+            {
+                PeptideLikeCheck.Content = "Peptide-like (finding...)";
+                signal = await run.PeptideLikeSearch!.Completion;
+                if (_run != run)
+                    return;
+                if (signal.CoversAny)
+                    _ = SaveSearchAsync(run, signal);
+            }
+            if (!signal.CoversAny)
+            {
+                App.WriteLog($"Peptide-like signal for {Path.GetFileName(run.Index.FilePath)}: no scans searched (ion trap data)");
+                PeptideLikeCheck.Content = "Peptide-like (not for ion trap data)";
+                return;
+            }
+            run.PeptideLike = signal;
+            if (signal.FailedScans > 0)
+                App.WriteLog($"Peptide-like search: the envelope finder failed on {signal.FailedScans:N0} scans (counted as no envelopes)");
+            App.WriteLog($"Peptide-like signal for {Path.GetFileName(run.Index.FilePath)}: {signal.Features.Count:N0} persistent features "
+                + $"in {signal.Series.Count:N0} series{(signal.IsDda ? " (DDA: MS1 only)" : "")}, {clock.Elapsed.TotalSeconds:0.0} s after the pass");
+            PeptideLikeCheck.Content = "Peptide-like";
+            PeptideLikeCheck.IsEnabled = true;
+            if (PeptideLikeCheck.IsChecked == true)
+                RefreshChromatogram(autoscale: false);
+            if (_currentScan >= 0)
+                _ = ShowSpectrumAsync(_currentScan);   // label the spectrum on screen too
+        }
+        catch (OperationCanceledException)
+        {
+            // The run was closed or replaced.
+        }
+        catch (Exception ex)
+        {
+            App.WriteLog($"Peptide-like signal failed: {ex}");
+            if (_run == run)
+                PeptideLikeCheck.Content = "Peptide-like (failed)";
+        }
     }
 
     private void OnViewOptionChanged(object sender, RoutedEventArgs e)
@@ -401,24 +531,54 @@ public partial class MainWindow : Window
         /// <summary>The document's signals in this run, once a document pass has measured them.</summary>
         public Core.Assignment.DocumentSignals? Signals { get; set; }
 
+        /// <summary>The isotope-envelope search still finishing after the pass (null without one).</summary>
+        public Features.PeptideLikeObserver? PeptideLikeSearch { get; private init; }
+
+        /// <summary>The peptide-like signal, once the search has finished.</summary>
+        public Features.PeptideLikeSignal? PeptideLike { get; set; }
+
+        /// <summary>A .hk file holding this run's search, read instead of searching (null when there was none).</summary>
+        public string? SavedSearch { get; private init; }
+
+        /// <summary>The finder the run's search used, to find a spectrum's envelopes again for labeling it.</summary>
+        public Features.IEnvelopeFinder? EnvelopeFinder { get; private init; }
+
+        /// <summary>What a .hk file for this run must have been made from.</summary>
+        public Features.HkFile.Stamp SearchStamp { get; private init; } = null!;
+
         private PwizMsDataSource Reader { get; }
 
         public static LoadedRun Load(string path, bool centroid, Core.Assignment.DocumentSignalObserver? document,
-            IProgress<double> progress, IProgress<ScanPassPreview>? preview, CancellationToken ct)
+            Features.IEnvelopeFinder? envelopeFinder, Features.KronikSettings linking, Features.Hardklor.HardklorSettings search, Features.HkStore store,
+            IProgress<double> progress, IProgress<ScanPassPreview>? preview,
+            CancellationToken ct)
         {
             var reader = PwizMsDataSource.Open(path);
             var extra = OpenExtraReaders(path);
+            // A search saved for this run (its .hk file) is read after the pass; otherwise isotope envelopes are
+            // searched on worker threads while the pass reads, and linked after it.
+            var stamp = Features.HkFile.Stamp.Of(path, reader.SpectrumCount,
+                Features.HkStore.SearchSettings(PwizEnvelopeModel.Description, centroid, search, linking));
+            var saved = envelopeFinder is null ? null : store.FindUsable(path, stamp);
+            var peptideLike = envelopeFinder is null || saved is not null ? null : new Features.PeptideLikeObserver(envelopeFinder, linking, cancellation: ct);
             try
             {
                 var heatmap = new IntensityHeatmapAccumulator();
                 var observers = new List<IScanObserver> { heatmap };
                 if (document is not null)
                     observers.Add(document);
+                if (peptideLike is not null)
+                    observers.Add(peptideLike);
                 var index = ScanIndexBuilder.Build(reader, centroid, observers, progress, ct, preview, extra);
-                return new LoadedRun(index, heatmap.Result!, reader, centroid) { Signals = document?.Result };
+                return new LoadedRun(index, heatmap.Result!, reader, centroid)
+                {
+                    Signals = document?.Result, PeptideLikeSearch = peptideLike, SavedSearch = saved, SearchStamp = stamp,
+                    EnvelopeFinder = envelopeFinder,
+                };
             }
             catch
             {
+                peptideLike?.Dispose();
                 reader.Dispose();
                 throw;
             }
@@ -494,6 +654,7 @@ public partial class MainWindow : Window
 
         public void Dispose()
         {
+            PeptideLikeSearch?.Dispose();   // stops a search still running
             lock (_readLock)
                 Reader.Dispose();
         }

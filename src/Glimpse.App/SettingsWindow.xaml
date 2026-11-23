@@ -48,6 +48,70 @@
                     </DataGrid>
                 </DockPanel>
             </TabItem>
+            <TabItem Header="Peptide-like">
+                <StackPanel Margin="8" Grid.IsSharedSizeScope="True">
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,10">
+                        While a file is read, Glimpse finds the isotope envelopes in every MS1 scan, and in every MS2 scan of a
+                        DIA run, with a port of Hardklor, and links them across scans with Kronik (as Bullseye does). Envelopes
+                        found in several scans (same charge, close in mass) are peptide-like; MS2
+                        envelopes are linked within each isolation window; the tolerances below are Kronik's defaults. The Peptide-like trace sums their peaks. Ion trap
+                        scans (Stellar, a Tribrid's linear ion trap) are not searched: they cannot resolve the isotopes of multiply charged ions.
+                    </TextBlock>
+                    <CheckBox x:Name="PeptideLikeChargeCheck"
+                              Content="MS1: count only multiply charged envelopes (2+ and up)"
+                              ToolTip="Most persistent singly charged MS1 envelopes are contaminants. MS2 envelopes of every charge count." />
+                    <TextBlock Text="The Hardklor and Kronik settings change the search, which runs while a file is read: after changing them Glimpse offers to read the open file again. A saved search made with other settings is searched again."
+                               TextWrapping="Wrap" Margin="0,10,0,0" FontStyle="Italic" />
+                    <TextBlock Text="Hardklor settings" Margin="0,12,0,4" FontWeight="SemiBold" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" SharedSizeGroup="SearchLabel" />
+                            <ColumnDefinition Width="70" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="Highest charge state (1 to 10)" VerticalAlignment="Center" Margin="0,3,12,3" />
+                        <TextBox Grid.Row="0" Grid.Column="1" x:Name="MaxChargeBox" Margin="0,3"
+                                 ToolTip="Isotope envelopes are tried at charges 1 up to this one. Skyline searches 1 to 7." />
+                        <TextBlock Grid.Row="1" Text="Overlapping envelopes kept (depth, 1 to 10)" VerticalAlignment="Center" Margin="0,3,12,3" />
+                        <TextBox Grid.Row="1" Grid.Column="1" x:Name="DepthBox" Margin="0,3"
+                                 ToolTip="At most this many envelopes are kept whose base peaks lie within 0.5 m/z of each other; the least intense of the rest are dropped (Skyline: 2)." />
+                        <TextBlock Grid.Row="2" Text="Min isotope dot product (0.5 to 0.99)" VerticalAlignment="Center" Margin="0,3,12,3" />
+                        <TextBox Grid.Row="2" Grid.Column="1" x:Name="IdotPBox" Margin="0,3"
+                                 ToolTip="How closely an envelope's peaks must match its model distribution to be accepted (Glimpse: 0.85; Skyline's Hardklor setting: 0.9)." />
+                    </Grid>
+                    <TextBlock Text="Kronik settings" Margin="0,12,0,4" FontWeight="SemiBold" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" SharedSizeGroup="SearchLabel" />
+                            <ColumnDefinition Width="70" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="Mass tolerance across scans (ppm, 0.1 to 100)" VerticalAlignment="Center" Margin="0,3,12,3" />
+                        <TextBox Grid.Row="0" Grid.Column="1" x:Name="PpmBox" Margin="0,3"
+                                 ToolTip="Envelopes in neighboring scans link when their monoisotopic masses are this close (Kronik: 10 ppm)." />
+                        <TextBlock Grid.Row="1" Text="Missed scans allowed in a row (0 to 5)" VerticalAlignment="Center" Margin="0,3,12,3" />
+                        <TextBox Grid.Row="1" Grid.Column="1" x:Name="GapBox" Margin="0,3"
+                                 ToolTip="A feature continues past this many scans in a row without its envelope (Kronik: 1)." />
+                        <TextBlock Grid.Row="2" Text="Fewest scans to be peptide-like (1 to 20)" VerticalAlignment="Center" Margin="0,3,12,3" />
+                        <TextBox Grid.Row="2" Grid.Column="1" x:Name="MinScansBox" Margin="0,3"
+                                 ToolTip="An envelope found in fewer scans than this is not peptide-like (Glimpse: 2; Kronik: 3)." />
+                    </Grid>
+                    <TextBlock Text="Display" Margin="0,12,0,4" FontWeight="SemiBold" />
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
+                        <TextBlock Text="Decimals of the m/z in spectrum envelope labels (0 to 6)" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBox x:Name="LabelDecimalsBox" Width="50"
+                                 ToolTip="An envelope no document peptide explains is labeled with its monoisotopic m/z, then its charge, for example 542.29 2+" />
+                    </StackPanel>
+                </StackPanel>
+            </TabItem>
         </TabControl>
     </DockPanel>
 </Window>

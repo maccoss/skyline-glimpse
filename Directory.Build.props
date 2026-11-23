@@ -7,7 +7,7 @@
     <!-- CalVer YY.feature.patch, the Skyline-PRISM scheme (see "Releases" in CLAUDE.md): bumped only at
          release time. The Skyline tool manifest (src/Glimpse.App/tool-inf/info.properties) carries the
          same number; VersionTests and build/package-and-verify.ps1 fail when the two differ. -->
-    <Version>26.1.0</Version>
+    <Version>26.2.0</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
 
     <LangVersion>latest</LangVersion>
