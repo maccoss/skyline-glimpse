@@ -55,6 +55,22 @@ public class PeptideLikeRunTests
     }
 
     [Fact]
+    public void TheChargeLimitLimitsHardklor()
+    {
+        var mz = new[] { 600.3, 600.3 + 1.00290 / 2, 600.3 + 2 * 1.00290 / 2, 600.3 + 3 * 1.00290 / 2 };
+        var intensity = new[] { 100000.0, 64000, 25500, 7400 };
+        var model = new PwizEnvelopeModel();
+        Assert.Equal(7, new AnalyzerEnvelopeFinder(model).MaxCharge);
+        Assert.Equal(2, Assert.Single(new AnalyzerEnvelopeFinder(model, 7).Find(mz, intensity, MassAnalyzer.Orbitrap)).Charge);
+        var oneOnly = new AnalyzerEnvelopeFinder(model, 1);
+        Assert.Equal(1, oneOnly.MaxCharge);
+        Assert.DoesNotContain(oneOnly.Find(mz, intensity, MassAnalyzer.Orbitrap), e => e.Charge > 1);
+        Assert.DoesNotContain(oneOnly.Find(mz, intensity, MassAnalyzer.Astral), e => e.Charge > 1);
+        Assert.Equal(3, AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.Astral, 3)!.MaxCharge);
+        Assert.Null(AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.IonTrap, 3));
+    }
+
+    [Fact]
     public void SmallRawHasPersistentMs1Envelopes()
     {
         using var source = PwizMsDataSource.Open(TestData.SmallRaw);

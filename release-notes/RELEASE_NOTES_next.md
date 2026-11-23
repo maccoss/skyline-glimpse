@@ -21,7 +21,8 @@ One-sentence summary of the release (written at release time).
 - A Peptide-like chromatogram trace: the signal in isotope envelopes that persist over several scans, found
   while the file is read with a port of Hardklor and linked with Bullseye's Kronik (MS1, and MS2 within each
   DIA isolation window). Next to the TIC and the Assigned trace it shows how much signal looks like peptides
-  and how much of that the document explains. Settings can count only multiply charged MS1 envelopes. Ion trap
+  and how much of that the document explains. Settings can count only multiply charged MS1 envelopes,
+  and set Hardklor's highest charge state and Kronik's mass tolerance, missed scans and fewest scans. Ion trap
   scans are not searched. In MS1 and MS2 spectra, peptide-like envelopes no document peptide explains are drawn
   in black and labeled with their monoisotopic m/z and charge (`542.29 2+`; Settings sets the decimals). The search is saved beside the raw file as `run.hk` (Parquet: every isotope envelope
   and persistent feature), so reopening the file skips it.

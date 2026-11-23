@@ -77,6 +77,12 @@ public sealed class HkStoreTests : IDisposable
             + "kronik 10ppm gap1 min3; dia windows 1000; centroid True",
             HkStore.SearchSettings("m", centroid: true));
         Assert.EndsWith("centroid False", HkStore.SearchSettings("m", centroid: false));
+        // Other search settings: another text, so saved searches made with the old ones are searched again.
+        Assert.Equal(
+            "model m; orbitrap Orbitrap 60000 z1-4 r0.9876883405951378 d2 max5000 areaTrue; "
+            + "astral Tof 80000 z1-4 r0.9876883405951378 d2 max5000 areaTrue; iontrap none; "
+            + "kronik 5.5ppm gap0 min2; dia windows 1000; centroid True",
+            HkStore.SearchSettings("m", true, 4, new KronikSettings(5.5, 0, 2)));
         Assert.Equal("pwiz isotope tables, 13C 0.01084, spacing 1.00286864", PwizEnvelopeModel.Description);
     }
 }

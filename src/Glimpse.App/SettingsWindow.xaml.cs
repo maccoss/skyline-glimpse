@@ -59,6 +59,10 @@ public partial class SettingsWindow : Window
         AlphaGrid.ItemsSource = _alphas;
         PeptideLikeChargeCheck.IsChecked = settings.PeptideLikeMs1MinCharge >= 2;
         LabelDecimalsBox.Text = settings.PeptideLikeLabelDecimals.ToString(Inv);
+        MaxChargeBox.Text = settings.HardklorMaxCharge.ToString(Inv);
+        PpmBox.Text = settings.KronikPpmTolerance.ToString("0.###", Inv);
+        GapBox.Text = settings.KronikGapTolerance.ToString(Inv);
+        MinScansBox.Text = settings.KronikMinScans.ToString(Inv);
     }
 
     /// <summary>The settings as edited, once OK is pressed.</summary>
@@ -122,14 +126,38 @@ public partial class SettingsWindow : Window
             return;
         }
 
+        if (!TryWhole(MaxChargeBox, 1, GlimpseSettings.MaxHardklorCharge, "The highest charge state", out var maxCharge)
+            || !TryWhole(GapBox, 0, GlimpseSettings.MaxGapTolerance, "The missed scans allowed", out var gap)
+            || !TryWhole(MinScansBox, 1, GlimpseSettings.MaxMinScans, "The fewest scans", out var minScans))
+            return;
+        if (!double.TryParse(PpmBox.Text, NumberStyles.Float, Inv, out var ppm) || !double.IsFinite(ppm)
+            || ppm < GlimpseSettings.MinPpm || ppm > GlimpseSettings.MaxPpm)
+        {
+            Refuse($"The mass tolerance needs a number of ppm from {GlimpseSettings.MinPpm.ToString(Inv)} to {GlimpseSettings.MaxPpm.ToString(Inv)}.", PpmBox);
+            return;
+        }
+
         Result = new GlimpseSettings
         {
             Figures = figures,
             IonCalibration = entries,
             PeptideLikeMs1MinCharge = PeptideLikeChargeCheck.IsChecked == true ? 2 : 1,
             PeptideLikeLabelDecimals = decimals,
+            HardklorMaxCharge = maxCharge,
+            KronikPpmTolerance = ppm,
+            KronikGapTolerance = gap,
+            KronikMinScans = minScans,
         }.Validated();
         DialogResult = true;
+    }
+
+    /// <summary>A whole number from <paramref name="min"/> to <paramref name="max"/> in <paramref name="box"/>, or a refusal naming it.</summary>
+    private bool TryWhole(TextBox box, int min, int max, string what, out int value)
+    {
+        if (int.TryParse(box.Text, NumberStyles.Integer, Inv, out value) && value >= min && value <= max)
+            return true;
+        Refuse($"{what} needs a whole number from {min} to {max}.", box);
+        return false;
     }
 
     private void Refuse(string message, TextBox? focus)

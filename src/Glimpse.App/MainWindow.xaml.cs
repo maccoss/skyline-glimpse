@@ -254,7 +254,9 @@ public partial class MainWindow : Window
         try
         {
             var finder = CreateEnvelopeFinder();
-            var run = await Task.Run(() => LoadedRun.Load(path, centroid, documentObserver, finder, _hkStore, progress, preview, cts.Token), cts.Token);
+            var linking = Linking;
+            var maxCharge = _glimpseSettings.HardklorMaxCharge;
+            var run = await Task.Run(() => LoadedRun.Load(path, centroid, documentObserver, finder, linking, maxCharge, _hkStore, progress, preview, cts.Token), cts.Token);
             if (cts.IsCancellationRequested)
             {
                 run.Dispose();
@@ -342,7 +344,10 @@ public partial class MainWindow : Window
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SkylineGlimpse", "cache"));
 
     /// <summary>The isotope-envelope finder for a new run (Hardklor, with pwiz's isotope distributions).</summary>
-    private static Features.IEnvelopeFinder? CreateEnvelopeFinder() => new Features.AnalyzerEnvelopeFinder(new PwizEnvelopeModel());
+    private Features.IEnvelopeFinder? CreateEnvelopeFinder() => new Features.AnalyzerEnvelopeFinder(new PwizEnvelopeModel(), _glimpseSettings.HardklorMaxCharge);
+
+    /// <summary>How the search links envelopes across scans (Settings, Peptide-like).</summary>
+    private Features.KronikSettings Linking => new(_glimpseSettings.KronikPpmTolerance, _glimpseSettings.KronikGapTolerance, _glimpseSettings.KronikMinScans);
 
     /// <summary>Save a finished search beside the raw file (else in the cache), so reopening the file skips it.</summary>
     private async Task SaveSearchAsync(LoadedRun run, Features.PeptideLikeSignal signal)
@@ -522,16 +527,18 @@ public partial class MainWindow : Window
         private PwizMsDataSource Reader { get; }
 
         public static LoadedRun Load(string path, bool centroid, Core.Assignment.DocumentSignalObserver? document,
-            Features.IEnvelopeFinder? envelopeFinder, Features.HkStore store, IProgress<double> progress, IProgress<ScanPassPreview>? preview,
+            Features.IEnvelopeFinder? envelopeFinder, Features.KronikSettings linking, int maxCharge, Features.HkStore store,
+            IProgress<double> progress, IProgress<ScanPassPreview>? preview,
             CancellationToken ct)
         {
             var reader = PwizMsDataSource.Open(path);
             var extra = OpenExtraReaders(path);
             // A search saved for this run (its .hk file) is read after the pass; otherwise isotope envelopes are
             // searched on worker threads while the pass reads, and linked after it.
-            var stamp = Features.HkFile.Stamp.Of(path, reader.SpectrumCount, Features.HkStore.SearchSettings(PwizEnvelopeModel.Description, centroid));
+            var stamp = Features.HkFile.Stamp.Of(path, reader.SpectrumCount,
+                Features.HkStore.SearchSettings(PwizEnvelopeModel.Description, centroid, maxCharge, linking));
             var saved = envelopeFinder is null ? null : store.FindUsable(path, stamp);
-            var peptideLike = envelopeFinder is null || saved is not null ? null : new Features.PeptideLikeObserver(envelopeFinder, cancellation: ct);
+            var peptideLike = envelopeFinder is null || saved is not null ? null : new Features.PeptideLikeObserver(envelopeFinder, linking, cancellation: ct);
             try
             {
                 var heatmap = new IntensityHeatmapAccumulator();

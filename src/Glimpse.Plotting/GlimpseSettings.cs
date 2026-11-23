@@ -100,6 +100,23 @@ public sealed record GlimpseSettings
     /// <summary>The most decimal places an envelope label may show.</summary>
     public const int MaxLabelDecimals = 6;
 
+    /// <summary>Hardklör: the highest charge state an isotope envelope is tried at (Skyline's setting: 7).</summary>
+    public int HardklorMaxCharge { get; init; } = 7;
+
+    /// <summary>Kronik: the largest mass difference, in ppm, between envelopes linked across scans.</summary>
+    public double KronikPpmTolerance { get; init; } = 10;
+
+    /// <summary>Kronik: scans in a row that may miss an envelope before its feature ends.</summary>
+    public int KronikGapTolerance { get; init; } = 1;
+
+    /// <summary>Kronik: the fewest scans an envelope must be found in to be peptide-like.</summary>
+    public int KronikMinScans { get; init; } = 3;
+
+    /// <summary>Ranges the search settings are kept in.</summary>
+    public const int MaxHardklorCharge = 10, MaxGapTolerance = 5, MaxMinScans = 20;
+
+    public const double MinPpm = 0.1, MaxPpm = 100;
+
     public static string DefaultPath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SkylineGlimpse", "settings.json");
 
@@ -161,6 +178,10 @@ public sealed record GlimpseSettings
         Figures = (Figures ?? FigureSettings.Default).Validated(),
         PeptideLikeMs1MinCharge = Math.Clamp(PeptideLikeMs1MinCharge, 1, 2),
         PeptideLikeLabelDecimals = Math.Clamp(PeptideLikeLabelDecimals, 0, MaxLabelDecimals),
+        HardklorMaxCharge = Math.Clamp(HardklorMaxCharge, 1, MaxHardklorCharge),
+        KronikPpmTolerance = double.IsFinite(KronikPpmTolerance) ? Math.Clamp(KronikPpmTolerance, MinPpm, MaxPpm) : 10,
+        KronikGapTolerance = Math.Clamp(KronikGapTolerance, 0, MaxGapTolerance),
+        KronikMinScans = Math.Clamp(KronikMinScans, 1, MaxMinScans),
         IonCalibration = IonCalibration is null
             ? IonCalibrationTable.Published
             : IonCalibration.Where(e => e is not null && !string.IsNullOrWhiteSpace(e.Instrument) && double.IsFinite(e.Alpha) && e.Alpha > 0)

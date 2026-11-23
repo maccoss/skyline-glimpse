@@ -87,7 +87,9 @@ within each isolation window; DDA runs are MS1 only.
 
 The **Peptide-like** trace sums the peaks of those envelopes in each scan, next to the TIC and the Assigned
 trace: the gap between Peptide-like and Assigned is signal that looks like peptides but no document peptide
-explains, and the rest of the TIC is signal there is little chance to identify. In the spectrum, the
+explains, and the rest of the TIC is signal there is little chance to identify. Settings (Peptide-like) set
+Hardklor's highest charge state and Kronik's mass tolerance, missed scans and fewest scans, for files opened
+afterwards. In the spectrum, the
 envelopes behind that gap are drawn in black and labeled with their monoisotopic m/z and charge
 (`542.29 2+`, decimals set in Settings), next to the document peptides' colored ions; *Peptide-like* above the
 spectrum turns them off. Settings can restrict MS1 to

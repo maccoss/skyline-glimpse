@@ -7,9 +7,9 @@ namespace Glimpse.Tests;
 /// <summary>The peptide-like signal: envelopes found on worker threads during the pass, linked after it.</summary>
 public class PeptideLikeTests
 {
-    private static PeptideLikeSignal Run(FakeSource source, IEnvelopeFinder finder)
+    private static PeptideLikeSignal Run(FakeSource source, IEnvelopeFinder finder, KronikSettings? linking = null)
     {
-        using var observer = new PeptideLikeObserver(finder, workers: 3);
+        using var observer = new PeptideLikeObserver(finder, linking, workers: 3);
         ScanIndexBuilder.Build(source, false, new IScanObserver[] { observer });
         return observer.Completion.Wait(TimeSpan.FromSeconds(30)) ? observer.Completion.Result : throw new TimeoutException();
     }
@@ -39,6 +39,18 @@ public class PeptideLikeTests
         Assert.All(signal.Features, f => Assert.Equal(0, f.Series));
         Assert.Equal(new[] { 0, 1, 2, 3 }, Assert.Single(signal.Series));
         Assert.False(signal.IsDda);
+    }
+
+    [Fact]
+    public void TheLinkingSettingsDecideWhatPersists()
+    {
+        // An envelope in two scans: not peptide-like with Kronik's 3, peptide-like when 2 scans are enough.
+        var source = new FakeSource()
+            .Ms1(1.0, new[] { 500.0, 500.5 }, new[] { 100.0, 50 })
+            .Ms1(1.1, new[] { 500.0, 500.5 }, new[] { 100.0, 50 });
+        var finder = new PatternEnvelopeFinder((500.0, 2, 2));
+        Assert.Empty(Run(source, finder).Features);
+        Assert.Single(Run(source, finder, KronikSettings.Default with { MinScans = 2 }).Features);
     }
 
     [Fact]

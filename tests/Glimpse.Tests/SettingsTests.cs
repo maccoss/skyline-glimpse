@@ -39,6 +39,8 @@ public sealed class SettingsTests : IDisposable
         Assert.True(d.ScaleWithPlotSize);
         Assert.Equal(1, GlimpseSettings.Default.PeptideLikeMs1MinCharge);   // every MS1 charge counts
         Assert.Equal(2, GlimpseSettings.Default.PeptideLikeLabelDecimals);
+        var d0 = GlimpseSettings.Default;
+        Assert.Equal((7, 10.0, 1, 3), (d0.HardklorMaxCharge, d0.KronikPpmTolerance, d0.KronikGapTolerance, d0.KronikMinScans));   // Skyline's and Kronik's
         Assert.Same(IonCalibrationTable.Published, GlimpseSettings.Default.IonCalibration);
         Assert.EndsWith(Path.Combine("SkylineGlimpse", "settings.json"), GlimpseSettings.DefaultPath);
     }
@@ -52,6 +54,10 @@ public sealed class SettingsTests : IDisposable
             IonCalibration = new[] { new AlphaEntry("Orbitrap Astral", MassAnalyzer.Astral, 1.4), new AlphaEntry("Stellar", MassAnalyzer.IonTrap, 1.0) },
             PeptideLikeMs1MinCharge = 2,
             PeptideLikeLabelDecimals = 4,
+            HardklorMaxCharge = 5,
+            KronikPpmTolerance = 7.5,
+            KronikGapTolerance = 2,
+            KronikMinScans = 4,
         };
         var path = File("nested/settings.json");
         GlimpseSettings.Default.Save(path);
@@ -62,6 +68,7 @@ public sealed class SettingsTests : IDisposable
         Assert.Equal(settings.IonCalibration, loaded.IonCalibration);
         Assert.Equal(2, loaded.PeptideLikeMs1MinCharge);
         Assert.Equal(4, loaded.PeptideLikeLabelDecimals);
+        Assert.Equal((5, 7.5, 2, 4), (loaded.HardklorMaxCharge, loaded.KronikPpmTolerance, loaded.KronikGapTolerance, loaded.KronikMinScans));
         var text = System.IO.File.ReadAllText(path);
         Assert.Contains("\"IonTrap\"", text);   // analyzers by name, not number
         Assert.Contains("\n  \"Figures\"", text.ReplaceLineEndings("\n"));   // indented, for editing by hand
@@ -127,6 +134,12 @@ public sealed class SettingsTests : IDisposable
         Assert.Equal(6, (GlimpseSettings.Default with { PeptideLikeLabelDecimals = 9 }).Validated().PeptideLikeLabelDecimals);
         Assert.Equal(0, (GlimpseSettings.Default with { PeptideLikeLabelDecimals = -1 }).Validated().PeptideLikeLabelDecimals);
         Assert.Equal(2, s.PeptideLikeLabelDecimals);    // not in the file: the default
+        GlimpseSettings Clamp(GlimpseSettings x) => x.Validated();
+        var low = Clamp(GlimpseSettings.Default with { HardklorMaxCharge = 0, KronikPpmTolerance = 0.01, KronikGapTolerance = -1, KronikMinScans = 0 });
+        Assert.Equal((1, 0.1, 0, 1), (low.HardklorMaxCharge, low.KronikPpmTolerance, low.KronikGapTolerance, low.KronikMinScans));
+        var high = Clamp(GlimpseSettings.Default with { HardklorMaxCharge = 20, KronikPpmTolerance = 500, KronikGapTolerance = 9, KronikMinScans = 50 });
+        Assert.Equal((10, 100.0, 5, 20), (high.HardklorMaxCharge, high.KronikPpmTolerance, high.KronikGapTolerance, high.KronikMinScans));
+        Assert.Equal(10.0, Clamp(GlimpseSettings.Default with { KronikPpmTolerance = double.NaN }).KronikPpmTolerance);
         Assert.Equal(new[] { new AlphaEntry("Orbitrap Astral", MassAnalyzer.Astral, 1.5) }, s.IonCalibration);
 
         System.IO.File.WriteAllText(File("notable.json"), """{ "IonCalibration": null }""");
