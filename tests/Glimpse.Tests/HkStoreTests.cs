@@ -82,7 +82,9 @@ public sealed class HkStoreTests : IDisposable
             "model m; orbitrap Orbitrap 60000 z1-4 r0.9876883405951378 d2 max5000 areaTrue; "
             + "astral Tof 80000 z1-4 r0.9876883405951378 d2 max5000 areaTrue; iontrap none; "
             + "kronik 5.5ppm gap0 min2; dia windows 1000; centroid True",
-            HkStore.SearchSettings("m", true, 4, new KronikSettings(5.5, 0, 2)));
+            HkStore.SearchSettings("m", true, Glimpse.Features.Hardklor.HardklorSettings.Default with { MaxCharge = 4 }, new KronikSettings(5.5, 0, 2)));
+        Assert.Contains("z1-7 r0.95 d3 ", HkStore.SearchSettings("m", true,
+            Glimpse.Features.Hardklor.HardklorSettings.Default with { Depth = 3, Correlation = 0.95 }, KronikSettings.Default));
         Assert.Equal("pwiz isotope tables, 13C 0.01084, spacing 1.00286864", PwizEnvelopeModel.Description);
     }
 }

@@ -255,8 +255,8 @@ public partial class MainWindow : Window
         {
             var finder = CreateEnvelopeFinder();
             var linking = Linking;
-            var maxCharge = _glimpseSettings.HardklorMaxCharge;
-            var run = await Task.Run(() => LoadedRun.Load(path, centroid, documentObserver, finder, linking, maxCharge, _hkStore, progress, preview, cts.Token), cts.Token);
+            var search = HardklorSearch;
+            var run = await Task.Run(() => LoadedRun.Load(path, centroid, documentObserver, finder, linking, search, _hkStore, progress, preview, cts.Token), cts.Token);
             if (cts.IsCancellationRequested)
             {
                 run.Dispose();
@@ -344,7 +344,15 @@ public partial class MainWindow : Window
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SkylineGlimpse", "cache"));
 
     /// <summary>The isotope-envelope finder for a new run (Hardklor, with pwiz's isotope distributions).</summary>
-    private Features.IEnvelopeFinder? CreateEnvelopeFinder() => new Features.AnalyzerEnvelopeFinder(new PwizEnvelopeModel(), _glimpseSettings.HardklorMaxCharge);
+    private Features.IEnvelopeFinder? CreateEnvelopeFinder() => new Features.AnalyzerEnvelopeFinder(new PwizEnvelopeModel(), HardklorSearch);
+
+    /// <summary>Hardklör's search settings (Settings, Peptide-like): charge limit, depth, minimum isotope dot product.</summary>
+    private Features.Hardklor.HardklorSettings HardklorSearch => Features.Hardklor.HardklorSettings.Default with
+    {
+        MaxCharge = _glimpseSettings.HardklorMaxCharge,
+        Depth = _glimpseSettings.HardklorDepth,
+        Correlation = Features.Hardklor.HardklorSettings.CorrelationFromIdotP(_glimpseSettings.HardklorMinIdotP),
+    };
 
     /// <summary>How the search links envelopes across scans (Settings, Peptide-like).</summary>
     private Features.KronikSettings Linking => new(_glimpseSettings.KronikPpmTolerance, _glimpseSettings.KronikGapTolerance, _glimpseSettings.KronikMinScans);
@@ -527,7 +535,7 @@ public partial class MainWindow : Window
         private PwizMsDataSource Reader { get; }
 
         public static LoadedRun Load(string path, bool centroid, Core.Assignment.DocumentSignalObserver? document,
-            Features.IEnvelopeFinder? envelopeFinder, Features.KronikSettings linking, int maxCharge, Features.HkStore store,
+            Features.IEnvelopeFinder? envelopeFinder, Features.KronikSettings linking, Features.Hardklor.HardklorSettings search, Features.HkStore store,
             IProgress<double> progress, IProgress<ScanPassPreview>? preview,
             CancellationToken ct)
         {
@@ -536,7 +544,7 @@ public partial class MainWindow : Window
             // A search saved for this run (its .hk file) is read after the pass; otherwise isotope envelopes are
             // searched on worker threads while the pass reads, and linked after it.
             var stamp = Features.HkFile.Stamp.Of(path, reader.SpectrumCount,
-                Features.HkStore.SearchSettings(PwizEnvelopeModel.Description, centroid, maxCharge, linking));
+                Features.HkStore.SearchSettings(PwizEnvelopeModel.Description, centroid, search, linking));
             var saved = envelopeFinder is null ? null : store.FindUsable(path, stamp);
             var peptideLike = envelopeFinder is null || saved is not null ? null : new Features.PeptideLikeObserver(envelopeFinder, linking, cancellation: ct);
             try

@@ -64,17 +64,17 @@ public sealed class HkStore
     /// (<paramref name="model"/>), Hardklör's settings for each analyzer searched, Kronik's linking, the DIA rule
     /// and whether peaks were vendor-centroided. Any change makes earlier .hk files stale.
     /// </summary>
-    public static string SearchSettings(string model, bool centroid) => SearchSettings(model, centroid, HardklorSettings.Default.MaxCharge, KronikSettings.Default);
+    public static string SearchSettings(string model, bool centroid) => SearchSettings(model, centroid, HardklorSettings.Default, KronikSettings.Default);
 
-    /// <summary>The settings text for a search of charges 1 to <paramref name="maxCharge"/>, linked with <paramref name="kronik"/>.</summary>
-    public static string SearchSettings(string model, bool centroid, int maxCharge, KronikSettings kronik)
+    /// <summary>The settings text for a search with Hardklör settings <paramref name="search"/>, linked with <paramref name="kronik"/>.</summary>
+    public static string SearchSettings(string model, bool centroid, HardklorSettings search, KronikSettings kronik)
     {
         static string Of(HardklorSettings? s) => s is null ? "none" : string.Create(CultureInfo.InvariantCulture,
             $"{s.Instrument} {s.Resolution} z{s.MinCharge}-{s.MaxCharge} r{s.Correlation:R} d{s.Depth} max{s.MaxMoleculeMz} area{s.DistributionArea}");
         var k = kronik;
         return string.Create(CultureInfo.InvariantCulture,
-            $"model {model}; orbitrap {Of(AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.Orbitrap, maxCharge))}; "
-            + $"astral {Of(AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.Astral, maxCharge))}; iontrap {Of(AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.IonTrap, maxCharge))}; "
+            $"model {model}; orbitrap {Of(AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.Orbitrap, search))}; "
+            + $"astral {Of(AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.Astral, search))}; iontrap {Of(AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.IonTrap, search))}; "
             + $"kronik {k.PpmTolerance}ppm gap{k.GapTolerance} min{k.MinScans}; dia windows {PeptideLikeObserver.MaxDiaWindows}; centroid {centroid}");
     }
 }

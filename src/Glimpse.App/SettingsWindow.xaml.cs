@@ -60,6 +60,8 @@ public partial class SettingsWindow : Window
         PeptideLikeChargeCheck.IsChecked = settings.PeptideLikeMs1MinCharge >= 2;
         LabelDecimalsBox.Text = settings.PeptideLikeLabelDecimals.ToString(Inv);
         MaxChargeBox.Text = settings.HardklorMaxCharge.ToString(Inv);
+        DepthBox.Text = settings.HardklorDepth.ToString(Inv);
+        IdotPBox.Text = settings.HardklorMinIdotP.ToString("0.###", Inv);
         PpmBox.Text = settings.KronikPpmTolerance.ToString("0.###", Inv);
         GapBox.Text = settings.KronikGapTolerance.ToString(Inv);
         MinScansBox.Text = settings.KronikMinScans.ToString(Inv);
@@ -127,9 +129,16 @@ public partial class SettingsWindow : Window
         }
 
         if (!TryWhole(MaxChargeBox, 1, GlimpseSettings.MaxHardklorCharge, "The highest charge state", out var maxCharge)
+            || !TryWhole(DepthBox, 1, GlimpseSettings.MaxDepth, "The overlapping envelopes kept", out var depth)
             || !TryWhole(GapBox, 0, GlimpseSettings.MaxGapTolerance, "The missed scans allowed", out var gap)
             || !TryWhole(MinScansBox, 1, GlimpseSettings.MaxMinScans, "The fewest scans", out var minScans))
             return;
+        if (!double.TryParse(IdotPBox.Text, NumberStyles.Float, Inv, out var idotp) || !double.IsFinite(idotp)
+            || idotp < GlimpseSettings.MinIdotP || idotp > GlimpseSettings.MaxIdotP)
+        {
+            Refuse($"The min isotope dot product needs a number from {GlimpseSettings.MinIdotP.ToString(Inv)} to {GlimpseSettings.MaxIdotP.ToString(Inv)}.", IdotPBox);
+            return;
+        }
         if (!double.TryParse(PpmBox.Text, NumberStyles.Float, Inv, out var ppm) || !double.IsFinite(ppm)
             || ppm < GlimpseSettings.MinPpm || ppm > GlimpseSettings.MaxPpm)
         {
@@ -144,6 +153,8 @@ public partial class SettingsWindow : Window
             PeptideLikeMs1MinCharge = PeptideLikeChargeCheck.IsChecked == true ? 2 : 1,
             PeptideLikeLabelDecimals = decimals,
             HardklorMaxCharge = maxCharge,
+            HardklorDepth = depth,
+            HardklorMinIdotP = idotp,
             KronikPpmTolerance = ppm,
             KronikGapTolerance = gap,
             KronikMinScans = minScans,

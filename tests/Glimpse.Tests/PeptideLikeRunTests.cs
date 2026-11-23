@@ -60,14 +60,19 @@ public class PeptideLikeRunTests
         var mz = new[] { 600.3, 600.3 + 1.00290 / 2, 600.3 + 2 * 1.00290 / 2, 600.3 + 3 * 1.00290 / 2 };
         var intensity = new[] { 100000.0, 64000, 25500, 7400 };
         var model = new PwizEnvelopeModel();
-        Assert.Equal(7, new AnalyzerEnvelopeFinder(model).MaxCharge);
-        Assert.Equal(2, Assert.Single(new AnalyzerEnvelopeFinder(model, 7).Find(mz, intensity, MassAnalyzer.Orbitrap)).Charge);
-        var oneOnly = new AnalyzerEnvelopeFinder(model, 1);
-        Assert.Equal(1, oneOnly.MaxCharge);
+        Assert.Equal(HardklorSettings.Default, new AnalyzerEnvelopeFinder(model).Search);
+        Assert.Equal(2, Assert.Single(new AnalyzerEnvelopeFinder(model, HardklorSettings.Default with { MaxCharge = 7 }).Find(mz, intensity, MassAnalyzer.Orbitrap)).Charge);
+        var oneOnly = new AnalyzerEnvelopeFinder(model, HardklorSettings.Default with { MaxCharge = 1 });
+        Assert.Equal(1, oneOnly.Search.MaxCharge);
         Assert.DoesNotContain(oneOnly.Find(mz, intensity, MassAnalyzer.Orbitrap), e => e.Charge > 1);
         Assert.DoesNotContain(oneOnly.Find(mz, intensity, MassAnalyzer.Astral), e => e.Charge > 1);
-        Assert.Equal(3, AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.Astral, 3)!.MaxCharge);
-        Assert.Null(AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.IonTrap, 3));
+        // The search settings carry over; each analyzer sets its own peak width.
+        var search = HardklorSettings.Default with { MaxCharge = 3, Depth = 4, Correlation = 0.95, Instrument = HardklorInstrument.Fticr, Resolution = 1 };
+        Assert.Equal(search with { Instrument = HardklorInstrument.Tof, Resolution = 80000 }, AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.Astral, search));
+        Assert.Equal(search with { Instrument = HardklorInstrument.Orbitrap, Resolution = 60000 }, AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.Orbitrap, search));
+        Assert.Null(AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.IonTrap, search));
+        // A stricter correlation than the envelope reaches: not found.
+        Assert.Empty(new AnalyzerEnvelopeFinder(model, HardklorSettings.Default with { Correlation = 0.99999 }).Find(mz, intensity, MassAnalyzer.Orbitrap));
     }
 
     [Fact]

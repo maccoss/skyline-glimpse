@@ -14,41 +14,44 @@ public sealed class AnalyzerEnvelopeFinder : IEnvelopeFinder
     private readonly IEnvelopeModel _model;
     private readonly ConcurrentDictionary<MassAnalyzer, HardklorFinder> _finders = new();
 
-    public AnalyzerEnvelopeFinder(IEnvelopeModel model) : this(model, HardklorSettings.Default.MaxCharge)
+    public AnalyzerEnvelopeFinder(IEnvelopeModel model) : this(model, HardklorSettings.Default)
     {
     }
 
     /// <param name="model">Isotope distributions.</param>
-    /// <param name="maxCharge">The highest charge state Hardklör considers (Skyline's: 7).</param>
-    public AnalyzerEnvelopeFinder(IEnvelopeModel model, int maxCharge)
+    /// <param name="search">Hardklör's search settings (charges, depth, correlation); each analyzer's peak
+    /// width replaces its instrument and resolution.</param>
+    public AnalyzerEnvelopeFinder(IEnvelopeModel model, HardklorSettings search)
     {
         _model = model;
-        MaxCharge = maxCharge;
+        Search = search;
     }
 
-    /// <summary>The highest charge state searched.</summary>
-    public int MaxCharge { get; }
+    /// <summary>Hardklör's search settings: charge range, depth, correlation threshold.</summary>
+    public HardklorSettings Search { get; }
 
     /// <summary>
     /// Hardklör's settings for <paramref name="analyzer"/>: Skyline's (Orbitrap model, 60,000 at m/z 400) for an
     /// Orbitrap or an analyzer Glimpse does not know; the Astral at a constant 80,000 (time-of-flight model);
     /// none for an ion trap.
     /// </summary>
-    public static HardklorSettings? SettingsFor(MassAnalyzer analyzer) => SettingsFor(analyzer, HardklorSettings.Default.MaxCharge);
+    public static HardklorSettings? SettingsFor(MassAnalyzer analyzer) => SettingsFor(analyzer, HardklorSettings.Default);
 
-    /// <summary>Hardklör's settings for <paramref name="analyzer"/>, searching charges 1 to <paramref name="maxCharge"/>.</summary>
-    public static HardklorSettings? SettingsFor(MassAnalyzer analyzer, int maxCharge) => analyzer switch
+    /// <summary>
+    /// <paramref name="search"/> with the peak width of <paramref name="analyzer"/>; null for an ion trap.
+    /// </summary>
+    public static HardklorSettings? SettingsFor(MassAnalyzer analyzer, HardklorSettings search) => analyzer switch
     {
-        MassAnalyzer.Astral => HardklorSettings.Default with { Instrument = HardklorInstrument.Tof, Resolution = 80000, MaxCharge = maxCharge },
+        MassAnalyzer.Astral => search with { Instrument = HardklorInstrument.Tof, Resolution = 80000 },
         MassAnalyzer.IonTrap => null,
-        _ => HardklorSettings.Default with { MaxCharge = maxCharge },
+        _ => search with { Instrument = HardklorInstrument.Orbitrap, Resolution = HardklorSettings.Default.Resolution },
     };
 
     public bool CanSearch(MassAnalyzer analyzer) => SettingsFor(analyzer) is not null;
 
     public IReadOnlyList<IsotopeEnvelope> Find(double[] mz, double[] intensity, MassAnalyzer analyzer) =>
         CanSearch(analyzer)
-            ? _finders.GetOrAdd(Key(analyzer), a => new HardklorFinder(SettingsFor(a, MaxCharge)!, _model)).Find(mz, intensity)
+            ? _finders.GetOrAdd(Key(analyzer), a => new HardklorFinder(SettingsFor(a, Search)!, _model)).Find(mz, intensity)
             : Array.Empty<IsotopeEnvelope>();
 
     /// <summary>Analyzers with the same settings share one finder (and its model library).</summary>

@@ -103,6 +103,15 @@ public sealed record GlimpseSettings
     /// <summary>Hardklör: the highest charge state an isotope envelope is tried at (Skyline's setting: 7).</summary>
     public int HardklorMaxCharge { get; init; } = 7;
 
+    /// <summary>
+    /// Hardklör: most envelopes kept whose base peaks lie within 0.5 m/z of each other (Skyline's <c>depth</c>: 2);
+    /// the least intense of the rest are dropped.
+    /// </summary>
+    public int HardklorDepth { get; init; } = 2;
+
+    /// <summary>Hardklör: the lowest isotope dot product (idotp) between an envelope and its model (Skyline's: 0.9).</summary>
+    public double HardklorMinIdotP { get; init; } = 0.9;
+
     /// <summary>Kronik: the largest mass difference, in ppm, between envelopes linked across scans.</summary>
     public double KronikPpmTolerance { get; init; } = 10;
 
@@ -113,7 +122,9 @@ public sealed record GlimpseSettings
     public int KronikMinScans { get; init; } = 3;
 
     /// <summary>Ranges the search settings are kept in.</summary>
-    public const int MaxHardklorCharge = 10, MaxGapTolerance = 5, MaxMinScans = 20;
+    public const int MaxHardklorCharge = 10, MaxDepth = 10, MaxGapTolerance = 5, MaxMinScans = 20;
+
+    public const double MinIdotP = 0.5, MaxIdotP = 0.99;
 
     public const double MinPpm = 0.1, MaxPpm = 100;
 
@@ -179,6 +190,8 @@ public sealed record GlimpseSettings
         PeptideLikeMs1MinCharge = Math.Clamp(PeptideLikeMs1MinCharge, 1, 2),
         PeptideLikeLabelDecimals = Math.Clamp(PeptideLikeLabelDecimals, 0, MaxLabelDecimals),
         HardklorMaxCharge = Math.Clamp(HardklorMaxCharge, 1, MaxHardklorCharge),
+        HardklorDepth = Math.Clamp(HardklorDepth, 1, MaxDepth),
+        HardklorMinIdotP = double.IsFinite(HardklorMinIdotP) ? Math.Clamp(HardklorMinIdotP, MinIdotP, MaxIdotP) : 0.9,
         KronikPpmTolerance = double.IsFinite(KronikPpmTolerance) ? Math.Clamp(KronikPpmTolerance, MinPpm, MaxPpm) : 10,
         KronikGapTolerance = Math.Clamp(KronikGapTolerance, 0, MaxGapTolerance),
         KronikMinScans = Math.Clamp(KronikMinScans, 1, MaxMinScans),
