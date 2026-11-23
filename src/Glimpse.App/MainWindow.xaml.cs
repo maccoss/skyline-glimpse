@@ -378,9 +378,9 @@ public partial class MainWindow : Window
             var where = await Task.Run(() => _hkStore.Save(run.Index.FilePath, signal, run.SearchStamp));
             App.WriteLog($"Saved the peptide-like search to {where} in {clock.Elapsed.TotalSeconds:0.0} s");
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            App.WriteLog($"Could not save the peptide-like search for {Path.GetFileName(run.Index.FilePath)}: {ex.Message}");
+            App.WriteLog($"Could not save the peptide-like search for {Path.GetFileName(run.Index.FilePath)}: {ex}");
         }
     }
 
@@ -442,6 +442,8 @@ public partial class MainWindow : Window
                 return;
             }
             run.PeptideLike = signal;
+            if (signal.FailedScans > 0)
+                App.WriteLog($"Peptide-like search: the envelope finder failed on {signal.FailedScans:N0} scans (counted as no envelopes)");
             App.WriteLog($"Peptide-like signal for {Path.GetFileName(run.Index.FilePath)}: {signal.Features.Count:N0} persistent features "
                 + $"in {signal.Series.Count:N0} series{(signal.IsDda ? " (DDA: MS1 only)" : "")}, {clock.Elapsed.TotalSeconds:0.0} s after the pass");
             PeptideLikeCheck.Content = "Peptide-like";

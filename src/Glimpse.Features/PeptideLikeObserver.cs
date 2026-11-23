@@ -24,7 +24,7 @@ public interface IEnvelopeFinder
 /// peptide-like signal.
 /// </summary>
 /// <remarks>
-/// <para>Scans the finder cannot search are left out (an ion trap cannot resolve the isotopes of multiply charged ions).</para>
+/// <para>Profile (not centroided) spectra are left out, as are scans the finder cannot search (an ion trap cannot resolve the isotopes of multiply charged ions).</para>
 /// <para>MS2 scans count only in DIA, where each isolation window repeats every cycle. A window seen for the
 /// first time is held until it comes back; once more than <see cref="MaxDiaWindows"/> distinct windows have
 /// appeared the run is DDA (a window per precursor) and MS2 scans are left out.</para>
@@ -44,6 +44,7 @@ public sealed class PeptideLikeObserver : IScanObserver, IDisposable
     private readonly CancellationTokenSource _cancel;
     private readonly TaskCompletionSource<PeptideLikeSignal> _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly ConcurrentDictionary<int, ScanEnvelopes> _found = new();
+    private int _failed;
     private readonly Dictionary<(long, long), int> _windowCounts = new();
     private readonly Dictionary<(long, long), SpectrumData> _firstOfWindow = new();
     private BlockingCollection<SpectrumData>? _queue;
@@ -84,6 +85,8 @@ public sealed class PeptideLikeObserver : IScanObserver, IDisposable
             _headers[h.Index] = h;
         if (!_finder.CanSearch(h.Analyzer))
             return;   // an ion trap: multiply charged isotopes not resolved, no peptide-like signal for this scan
+        if (!h.Centroided)
+            return;   // profile points: Hardklor works on centroided peaks
         if (h.MsLevel == 1)
         {
             _ms1.Add(h.Index);
@@ -169,8 +172,18 @@ public sealed class PeptideLikeObserver : IScanObserver, IDisposable
     {
         foreach (var spectrum in queue.GetConsumingEnumerable(token))
         {
-            var envelopes = spectrum.Mz.Length == 0 ? Array.Empty<IsotopeEnvelope>() : _finder.Find(spectrum.Mz, spectrum.Intensity, spectrum.Header.Analyzer);
-            _found[spectrum.Header.Index] = ScanEnvelopes.From(envelopes, spectrum.Intensity);
+            // A spectrum the finder cannot handle counts as having no envelopes: a worker that died would leave
+            // the bounded queue to fill and the scan pass waiting forever.
+            try
+            {
+                var envelopes = spectrum.Mz.Length == 0 ? Array.Empty<IsotopeEnvelope>() : _finder.Find(spectrum.Mz, spectrum.Intensity, spectrum.Header.Analyzer);
+                _found[spectrum.Header.Index] = ScanEnvelopes.From(envelopes, spectrum.Intensity);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _found[spectrum.Header.Index] = ScanEnvelopes.Empty;
+                Interlocked.Increment(ref _failed);
+            }
         }
     }
 
@@ -190,7 +203,10 @@ public sealed class PeptideLikeObserver : IScanObserver, IDisposable
             for (var k = 0; k < scans.Length; k++)
                 featureOf[scans[k]] = result.FeatureOf[k].Select(id => id < 0 ? -1 : id + offset).ToArray();
         }
-        return new PeptideLikeSignal(headers, new Dictionary<int, ScanEnvelopes>(_found), featureOf, features, series, dda);
+        return new PeptideLikeSignal(headers, new Dictionary<int, ScanEnvelopes>(_found), featureOf, features, series, dda)
+        {
+            FailedScans = Volatile.Read(ref _failed),
+        };
     }
 
     /// <summary>An isolation window to 0.01 m/z: DIA repeats it exactly.</summary>
@@ -317,6 +333,9 @@ public sealed class PeptideLikeSignal
 
     /// <summary>True when MS2 scans were left out because the run is DDA.</summary>
     public bool IsDda { get; }
+
+    /// <summary>Scans the envelope finder failed on (counted as having no envelopes).</summary>
+    public int FailedScans { get; internal init; }
 
     internal ScanHeader[] Headers => _headers;
 

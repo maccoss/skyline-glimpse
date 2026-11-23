@@ -1,3 +1,4 @@
+using Glimpse.Core.Data;
 using Glimpse.Core.Scans;
 using Glimpse.Features;
 using Xunit;
@@ -51,6 +52,63 @@ public class PeptideLikeTests
         var finder = new PatternEnvelopeFinder((500.0, 2, 2));
         Assert.Empty(Run(source, finder).Features);
         Assert.Single(Run(source, finder, KronikSettings.Default with { MinScans = 2 }).Features);
+    }
+
+    /// <summary>Throws on spectra whose first peak is at the given m/z, finds nothing otherwise.</summary>
+    private sealed class FailingFinder(double failAt) : IEnvelopeFinder
+    {
+        public bool CanSearch(Glimpse.Core.Data.MassAnalyzer analyzer) => true;
+
+        public IReadOnlyList<IsotopeEnvelope> Find(double[] mz, double[] intensity, Glimpse.Core.Data.MassAnalyzer analyzer) =>
+            Math.Abs(mz[0] - failAt) < 1e-6 ? throw new InvalidOperationException("bad spectrum") : Array.Empty<IsotopeEnvelope>();
+    }
+
+    [Fact]
+    public void AFailedSpectrumNeitherStopsTheSearchNorTheRead()
+    {
+        // 600 spectra through one worker (more than its 256-spectrum queue); every other one makes the finder throw.
+        var source = new FakeSource();
+        for (var i = 0; i < 600; i++)
+            source.Ms1(1 + i * 0.01, new[] { i % 2 == 0 ? 500.0 : 600.0 }, new[] { 10.0 });
+        using var observer = new PeptideLikeObserver(new FailingFinder(500.0), workers: 1);
+        var read = Task.Run(() => ScanIndexBuilder.Build(source, false, new IScanObserver[] { observer }));
+        Assert.True(read.Wait(TimeSpan.FromSeconds(30)), "the read finished");
+        Assert.True(observer.Completion.Wait(TimeSpan.FromSeconds(30)), "the search finished");
+        var signal = observer.Completion.Result;
+        Assert.Equal(300, signal.FailedScans);
+        Assert.Equal(600, signal.IntensityByScan().Count(v => v == 0));      // failed scans: searched, no envelopes
+    }
+
+    [Fact]
+    public void ProfileSpectraAreNotSearched()
+    {
+        var source = new FakeSource();
+        for (var s = 0; s < 3; s++)
+            source.Ms1(1 + s * 0.1, new[] { 500.0, 500.5, 501.0 }, new[] { 100.0, 50, 25 });
+        var profile = new ProfileSource(source);
+        var finder = new PatternEnvelopeFinder((500.0, 2, 3));
+        using var observer = new PeptideLikeObserver(finder, workers: 2);
+        ScanIndexBuilder.Build(profile, false, new IScanObserver[] { observer });
+        Assert.True(observer.Completion.Wait(TimeSpan.FromSeconds(30)));
+        Assert.Equal(0, finder.Calls);
+        Assert.False(observer.Completion.Result.CoversAny);
+    }
+
+    /// <summary>The same spectra, marked as profile data.</summary>
+    private sealed class ProfileSource(FakeSource inner) : IMsDataSource
+    {
+        public string FilePath => inner.FilePath;
+        public int SpectrumCount => inner.SpectrumCount;
+        public RunInfo Run => inner.Run;
+        public bool CanVendorCentroid => false;
+        public double ReadRetentionTime(int index) => inner.ReadRetentionTime(index);
+        public void Dispose() { }
+
+        public SpectrumData ReadSpectrum(int index, bool centroid)
+        {
+            var s = inner.ReadSpectrum(index, centroid);
+            return new SpectrumData(s.Header with { Centroided = false }, s.Mz, s.Intensity, s.Details);
+        }
     }
 
     [Fact]

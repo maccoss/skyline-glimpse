@@ -34,10 +34,19 @@ public static class HkFile
     /// <param name="Settings">The search settings, as text (any change makes old files stale).</param>
     public sealed record Stamp(long RawSize, DateTime RawModifiedUtc, int SpectrumCount, string Settings)
     {
-        /// <summary>The stamp of a raw file (or vendor folder) as it is on disk now.</summary>
-        public static Stamp Of(string rawPath, int spectrumCount, string settings) => File.Exists(rawPath)
-            ? new Stamp(new FileInfo(rawPath).Length, File.GetLastWriteTimeUtc(rawPath), spectrumCount, settings)
-            : new Stamp(0, Directory.GetLastWriteTimeUtc(rawPath), spectrumCount, settings);
+        /// <summary>
+        /// The stamp of a raw file as it is on disk now. A vendor folder (Waters .raw, Bruker .d) is stamped with the
+        /// total size and newest write time of the files inside it: the folder's own time does not change when
+        /// a file in it is rewritten.
+        /// </summary>
+        public static Stamp Of(string rawPath, int spectrumCount, string settings)
+        {
+            if (File.Exists(rawPath))
+                return new Stamp(new FileInfo(rawPath).Length, File.GetLastWriteTimeUtc(rawPath), spectrumCount, settings);
+            var files = new DirectoryInfo(rawPath).EnumerateFiles("*", SearchOption.AllDirectories).ToList();
+            return new Stamp(files.Sum(f => f.Length),
+                files.Count == 0 ? Directory.GetLastWriteTimeUtc(rawPath) : files.Max(f => f.LastWriteTimeUtc), spectrumCount, settings);
+        }
     }
 
     /// <summary>The .hk file beside a raw file: <c>run.raw</c> becomes <c>run.hk</c>.</summary>
@@ -175,11 +184,9 @@ public static class HkFile
         {
             return ReadAsync(path, expected, headers).GetAwaiter().GetResult();
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException
-            or JsonException or FormatException or IndexOutOfRangeException or ArgumentException or InvalidOperationException
-            or NotSupportedException or OverflowException)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            return null;
+            return null;   // damaged, truncated or not a .hk file: search again
         }
     }
 
@@ -195,10 +202,9 @@ public static class HkFile
         {
             return MatchesAsync(path, expected).GetAwaiter().GetResult();
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException
-            or FormatException or ArgumentException or InvalidOperationException or NotSupportedException or OverflowException)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            return false;
+            return false;   // whatever is wrong with the file, it must never stop the raw file from opening
         }
     }
 

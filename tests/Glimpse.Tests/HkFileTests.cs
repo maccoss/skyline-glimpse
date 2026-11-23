@@ -105,6 +105,21 @@ public sealed class HkFileTests : IDisposable
         Assert.Null(HkFile.TryRead(Path.Combine(_dir, "none.hk"), stamp, headers));
         File.WriteAllText(Path.Combine(_dir, "bad.hk"), "not parquet");
         Assert.Null(HkFile.TryRead(Path.Combine(_dir, "bad.hk"), stamp, headers));
+        Assert.False(HkFile.Matches(Path.Combine(_dir, "bad.hk"), stamp));
+        // Parquet's magic at both ends around garbage: whatever the reader throws, the file is just unusable.
+        var fake = new byte[64];
+        "PAR1"u8.CopyTo(fake);
+        "PAR1"u8.CopyTo(fake.AsSpan(60));
+        BitConverter.GetBytes(40).CopyTo(fake, 56);
+        new Random(1).NextBytes(fake.AsSpan(4, 52));
+        File.WriteAllBytes(Path.Combine(_dir, "garbage.hk"), fake);
+        Assert.False(HkFile.Matches(Path.Combine(_dir, "garbage.hk"), stamp));
+        Assert.Null(HkFile.TryRead(Path.Combine(_dir, "garbage.hk"), stamp, headers));
+        // A truncated real file.
+        var whole = File.ReadAllBytes(path);
+        File.WriteAllBytes(Path.Combine(_dir, "cut.hk"), whole[..(whole.Length / 2)]);
+        Assert.False(HkFile.Matches(Path.Combine(_dir, "cut.hk"), stamp));
+        Assert.Null(HkFile.TryRead(Path.Combine(_dir, "cut.hk"), stamp, headers));
     }
 
     [Fact]
@@ -157,6 +172,14 @@ public sealed class HkFileTests : IDisposable
         Assert.Equal(new HkFile.Stamp(42, Modified, 7, "x"), HkFile.Stamp.Of(file, 7, "x"));
         var folder = Directory.CreateDirectory(Path.Combine(_dir, "waters.raw")).FullName;
         Directory.SetLastWriteTimeUtc(folder, Modified);
-        Assert.Equal(new HkFile.Stamp(0, Modified, 7, "x"), HkFile.Stamp.Of(folder, 7, "x"));
+        Assert.Equal(new HkFile.Stamp(0, Modified, 7, "x"), HkFile.Stamp.Of(folder, 7, "x"));          // empty: the folder's time
+        // A vendor folder: the files inside it, total size and newest time (the folder's own time lags).
+        File.WriteAllBytes(Path.Combine(folder, "_FUNC001.DAT"), new byte[100]);
+        Directory.CreateDirectory(Path.Combine(folder, "sub"));
+        File.WriteAllBytes(Path.Combine(folder, "sub", "_extern.inf"), new byte[20]);
+        File.SetLastWriteTimeUtc(Path.Combine(folder, "_FUNC001.DAT"), Modified.AddHours(1));
+        File.SetLastWriteTimeUtc(Path.Combine(folder, "sub", "_extern.inf"), Modified.AddHours(2));
+        Directory.SetLastWriteTimeUtc(folder, Modified);
+        Assert.Equal(new HkFile.Stamp(120, Modified.AddHours(2), 7, "x"), HkFile.Stamp.Of(folder, 7, "x"));
     }
 }
