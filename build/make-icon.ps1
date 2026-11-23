@@ -32,6 +32,7 @@ try {
     foreach ($s in $small) { Render 'docs/logo/glimpse-icon-small.svg' (Join-Path $work "ico-$s.png") ($s / 256) }
     foreach ($s in $large) { Render 'docs/logo/glimpse-icon.svg' (Join-Path $work "ico-$s.png") ($s / 256) }
     Render 'docs/logo/glimpse-icon.svg' (Join-Path $root 'docs/logo/glimpse-icon-256.png') 1
+    Copy-Item (Join-Path $root 'docs/logo/glimpse-icon-256.png') (Join-Path $root 'src/Glimpse.App/tool-inf/Glimpse.png')   # the tool's logo in Skyline
     Render 'docs/logo/glimpse-logo.svg' (Join-Path $root 'docs/images/glimpse-logo.png') 2   # 2x for high-DPI screens
 
     $ico = Join-Path $root 'src/Glimpse.App/glimpse.ico'

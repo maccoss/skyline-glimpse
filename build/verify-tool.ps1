@@ -30,9 +30,12 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 $exe = Join-Path $dir 'SkylineGlimpse.exe'
 if (-not (Test-Path $exe)) { Write-Host 'VERIFY FAILED: SkylineGlimpse.exe not found in the zip'; exit 1 }
-foreach ($required in @('tool-inf\info.properties', 'tool-inf\SkylineGlimpse.properties', 'Pwiz.Vendor.Thermo.dll', 'ThermoFisher.CommonCore.RawFileReader.dll')) {
+foreach ($required in @('tool-inf\info.properties', 'tool-inf\SkylineGlimpse.properties', 'tool-inf\Glimpse.png', 'Pwiz.Vendor.Thermo.dll', 'ThermoFisher.CommonCore.RawFileReader.dll')) {
     if (-not (Test-Path (Join-Path $dir $required))) { Write-Host "VERIFY FAILED: $required missing from the zip"; exit 1 }
 }
+# Skyline takes the tool's logo from the one image directly in tool-inf; with none it shows the default logo.
+$images = @(Get-ChildItem (Join-Path $dir 'tool-inf') -File | Where-Object { $_.Extension -in '.png', '.jpg', '.jpeg', '.gif' })
+if ($images.Count -ne 1) { Write-Host "VERIFY FAILED: tool-inf must hold exactly one logo image (png, jpg or gif), found $($images.Count)"; exit 1 }
 
 function Get-LogTail {
     if (-not (Test-Path $log)) { return '' }
