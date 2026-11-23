@@ -23,7 +23,8 @@ One-sentence summary of the release (written at release time).
   DIA isolation window). Next to the TIC and the Assigned trace it shows how much signal looks like peptides
   and how much of that the document explains. Settings can count only multiply charged MS1 envelopes,
   and hold Hardklor settings (highest charge state, overlapping envelopes kept, minimum isotope dot product) and
-  Kronik settings (mass tolerance, missed scans, fewest scans). Ion trap
+  Kronik settings (mass tolerance, missed scans, fewest scans); they default to Skyline's and Kronik's values
+  except a minimum isotope dot product of 0.85 and 2 scans. Ion trap
   scans are not searched. In MS1 and MS2 spectra, peptide-like envelopes no document peptide explains are drawn
   in black and labeled with their monoisotopic m/z and charge (`542.29 2+`; Settings sets the decimals). No
   peptide is drawn black or grey any more: peaks shared by several peptides are magenta (they were near-black),

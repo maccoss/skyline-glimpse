@@ -40,8 +40,9 @@ public sealed class SettingsTests : IDisposable
         Assert.Equal(1, GlimpseSettings.Default.PeptideLikeMs1MinCharge);   // every MS1 charge counts
         Assert.Equal(2, GlimpseSettings.Default.PeptideLikeLabelDecimals);
         var d0 = GlimpseSettings.Default;
-        Assert.Equal((7, 10.0, 1, 3), (d0.HardklorMaxCharge, d0.KronikPpmTolerance, d0.KronikGapTolerance, d0.KronikMinScans));   // Skyline's and Kronik's
-        Assert.Equal((2, 0.9), (d0.HardklorDepth, d0.HardklorMinIdotP));
+        // Skyline's and Kronik's, except idotp 0.85 (Skyline 0.9) and 2 scans (Kronik 3).
+        Assert.Equal((7, 10.0, 1, 2), (d0.HardklorMaxCharge, d0.KronikPpmTolerance, d0.KronikGapTolerance, d0.KronikMinScans));
+        Assert.Equal((2, 0.85), (d0.HardklorDepth, d0.HardklorMinIdotP));
         Assert.Same(IonCalibrationTable.Published, GlimpseSettings.Default.IonCalibration);
         Assert.EndsWith(Path.Combine("SkylineGlimpse", "settings.json"), GlimpseSettings.DefaultPath);
     }
@@ -148,7 +149,7 @@ public sealed class SettingsTests : IDisposable
             Clamp(GlimpseSettings.Default with { HardklorDepth = 0, HardklorMinIdotP = 0.1 }).HardklorMinIdotP));
         Assert.Equal((10, 0.99), (Clamp(GlimpseSettings.Default with { HardklorDepth = 50, HardklorMinIdotP = 2 }).HardklorDepth,
             Clamp(GlimpseSettings.Default with { HardklorDepth = 50, HardklorMinIdotP = 2 }).HardklorMinIdotP));
-        Assert.Equal(0.9, Clamp(GlimpseSettings.Default with { HardklorMinIdotP = double.NaN }).HardklorMinIdotP);
+        Assert.Equal(0.85, Clamp(GlimpseSettings.Default with { HardklorMinIdotP = double.NaN }).HardklorMinIdotP);
         Assert.Equal(new[] { new AlphaEntry("Orbitrap Astral", MassAnalyzer.Astral, 1.5) }, s.IonCalibration);
 
         System.IO.File.WriteAllText(File("notable.json"), """{ "IonCalibration": null }""");

@@ -81,7 +81,7 @@
                                  ToolTip="At most this many envelopes are kept whose base peaks lie within 0.5 m/z of each other; the least intense of the rest are dropped (Skyline: 2)." />
                         <TextBlock Grid.Row="2" Text="Min isotope dot product (0.5 to 0.99)" VerticalAlignment="Center" Margin="0,3,12,3" />
                         <TextBox Grid.Row="2" Grid.Column="1" x:Name="IdotPBox" Margin="0,3"
-                                 ToolTip="How closely an envelope's peaks must match its model distribution to be accepted (Skyline: 0.9)." />
+                                 ToolTip="How closely an envelope's peaks must match its model distribution to be accepted (Glimpse: 0.85; Skyline's Hardklor setting: 0.9)." />
                     </Grid>
                     <TextBlock Text="Kronik settings" Margin="0,12,0,4" FontWeight="SemiBold" />
                     <Grid>
@@ -102,7 +102,7 @@
                                  ToolTip="A feature continues past this many scans in a row without its envelope (Kronik: 1)." />
                         <TextBlock Grid.Row="2" Text="Fewest scans to be peptide-like (1 to 20)" VerticalAlignment="Center" Margin="0,3,12,3" />
                         <TextBox Grid.Row="2" Grid.Column="1" x:Name="MinScansBox" Margin="0,3"
-                                 ToolTip="An envelope found in fewer scans than this is not peptide-like (Kronik: 3)." />
+                                 ToolTip="An envelope found in fewer scans than this is not peptide-like (Glimpse: 2; Kronik: 3)." />
                     </Grid>
                     <TextBlock Text="Display" Margin="0,12,0,4" FontWeight="SemiBold" />
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
