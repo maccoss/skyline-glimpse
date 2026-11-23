@@ -99,13 +99,14 @@ public partial class MainWindow
             AddTrace(plot, RunChromatogram.Build(_run.Index, RunTraceKind.Tic, filter, units, Calibration), Colors.Black, runAxis, hasXics);
         if (BpcCheck.IsChecked == true)
             AddTrace(plot, RunChromatogram.Build(_run.Index, RunTraceKind.BasePeak, filter, units, Calibration), Color.FromHex("#1F4E9A"), runAxis, hasXics);
+        // Under the assigned trace: peptide-like signal is mostly larger, and would hide it.
+        if (PeptideLikeCheck.IsChecked == true && _run.PeptideLike is { } peptideLike)
+            AddTrace(plot, PeptideLikeTrace(peptideLike, filter, units), Color.FromHex("#C05A00"), runAxis, hasXics);
         if (AssignedCheck.IsChecked == true && _run.Signals is { } signals)
         {
             // Drawn over the TIC: total and assigned side by side, the gap between them unassigned.
             AddTrace(plot, AssignedTrace(signals, filter, units), Colors.SeaGreen, runAxis, hasXics);
         }
-        if (PeptideLikeCheck.IsChecked == true && _run.PeptideLike is { } peptideLike)
-            AddTrace(plot, PeptideLikeTrace(peptideLike, filter, units), Color.FromHex("#C05A00"), runAxis, hasXics);
 
         if (hasXics)
         {
