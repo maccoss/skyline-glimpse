@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Isotope-envelope feature finding (ported from Hardklor and Bullseye/Kronik) with no pwiz dependency:
+         isotope distributions come through IEnvelopeModel, which Glimpse.Pwiz implements. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Glimpse.Features</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Glimpse.Core\Glimpse.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Glimpse.Tests" />
+  </ItemGroup>
+
+</Project>

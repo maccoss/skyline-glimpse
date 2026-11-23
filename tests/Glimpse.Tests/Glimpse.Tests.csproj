@@ -44,6 +44,7 @@
     <ProjectReference Include="..\..\src\Glimpse.Library\Glimpse.Library.csproj" />
     <ProjectReference Include="..\..\src\Glimpse.Plotting\Glimpse.Plotting.csproj" />
     <ProjectReference Include="..\..\src\Glimpse.Skyline\Glimpse.Skyline.csproj" />
+    <ProjectReference Include="..\..\src\Glimpse.Features\Glimpse.Features.csproj" />
   </ItemGroup>
 
 </Project>
