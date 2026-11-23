@@ -55,7 +55,7 @@
                         DIA run, with a port of Hardklor, and links them across scans with Kronik (as Bullseye does). Envelopes
                         found in at least 3 scans (same charge, within 10 ppm, one missed scan allowed) are peptide-like; MS2
                         envelopes are linked within each isolation window. The Peptide-like trace sums their peaks. Ion trap
-                        scans (Stellar, a Tribrid's linear ion trap) are not searched: they do not resolve isotopes.
+                        scans (Stellar, a Tribrid's linear ion trap) are not searched: they cannot resolve the isotopes of multiply charged ions.
                     </TextBlock>
                     <CheckBox x:Name="PeptideLikeChargeCheck"
                               Content="MS1: count only multiply charged envelopes (2+ and up)"

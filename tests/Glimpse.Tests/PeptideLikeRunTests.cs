@@ -26,7 +26,7 @@ public class PeptideLikeRunTests
         // Peak widths at m/z 800: Orbitrap 800^1.5 / (20 x 60000), Astral 800 / 80000.
         Assert.Equal(0.018856, AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.Orbitrap)!.PeakWidth(800), 6);
         Assert.Equal(0.01, AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.Astral)!.PeakWidth(800), 9);
-        // An ion trap does not resolve isotopes: not searched.
+        // An ion trap cannot resolve the isotopes of multiply charged ions: not searched.
         Assert.Null(AnalyzerEnvelopeFinder.SettingsFor(MassAnalyzer.IonTrap));
         var finder = new AnalyzerEnvelopeFinder(new PwizEnvelopeModel());
         Assert.False(finder.CanSearch(MassAnalyzer.IonTrap));

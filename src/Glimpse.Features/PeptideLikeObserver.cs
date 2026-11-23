@@ -13,7 +13,7 @@ public interface IEnvelopeFinder
     /// </summary>
     IReadOnlyList<IsotopeEnvelope> Find(double[] mz, double[] intensity, MassAnalyzer analyzer);
 
-    /// <summary>False for scans the finder cannot resolve isotopes in (an ion trap's): they are not searched.</summary>
+    /// <summary>False for scans the finder should not search (an ion trap's, which cannot resolve the isotopes of multiply charged ions).</summary>
     bool CanSearch(MassAnalyzer analyzer);
 }
 
@@ -24,7 +24,7 @@ public interface IEnvelopeFinder
 /// peptide-like signal.
 /// </summary>
 /// <remarks>
-/// <para>Scans the finder cannot search (an ion trap does not resolve isotopes) are left out.</para>
+/// <para>Scans the finder cannot search are left out (an ion trap cannot resolve the isotopes of multiply charged ions).</para>
 /// <para>MS2 scans count only in DIA, where each isolation window repeats every cycle. A window seen for the
 /// first time is held until it comes back; once more than <see cref="MaxDiaWindows"/> distinct windows have
 /// appeared the run is DDA (a window per precursor) and MS2 scans are left out.</para>
@@ -83,7 +83,7 @@ public sealed class PeptideLikeObserver : IScanObserver, IDisposable
         if (h.Index >= 0 && h.Index < _headers.Length)
             _headers[h.Index] = h;
         if (!_finder.CanSearch(h.Analyzer))
-            return;   // isotopes not resolved (ion trap): no peptide-like signal for this scan
+            return;   // an ion trap: multiply charged isotopes not resolved, no peptide-like signal for this scan
         if (h.MsLevel == 1)
         {
             _ms1.Add(h.Index);
